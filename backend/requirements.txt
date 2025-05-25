@@ -1,0 +1,8 @@
+pydantic==2.7.0
+pydantic-settings>=2.0.0
+python-dotenv==1.0.1
+deepgram-sdk==4.*
+aiohttp>=3.9
+fastapi>=0.111
+openai>=1.3
+uvicorn[standard]>=0.30

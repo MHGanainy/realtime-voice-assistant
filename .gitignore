@@ -1,0 +1,10 @@
+.env
+.vscode/launch.json
+backend/digest.txt
+backend/app/__pycache__/*
+backend/app/__pycache__/*
+backend/app/interfaces/__pycache__/*
+backend/app/providers/__pycache__/*
+frontend/digest.txt
+frontend/package-lock.json
+logs/*
