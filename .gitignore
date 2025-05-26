@@ -8,3 +8,4 @@ backend/app/providers/__pycache__/*
 frontend/digest.txt
 frontend/package-lock.json
 logs/*
+digest.txt
