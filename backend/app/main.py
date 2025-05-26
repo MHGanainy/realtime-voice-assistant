@@ -1,6 +1,6 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 import asyncio, json
-from .providers import make_stt, make_llm
+from .providers import make_stt, make_llm, make_tts
 
 app = FastAPI()
 
@@ -9,6 +9,7 @@ async def websocket_endpoint(ws: WebSocket):
     await ws.accept()
     stt = make_stt()
     llm = make_llm()
+    tts = make_tts()
 
     paused = asyncio.Event()
 
@@ -38,11 +39,22 @@ async def websocket_endpoint(ws: WebSocket):
 
             paused.set()
 
+            # ---------- LLM → ElevenLabs TTS pipeline ----------
             reply_parts: list[str] = []
 
-            async for token in llm.stream(utterance):
-                reply_parts.append(token)
-            assistant_reply = " ".join(reply_parts)
+            async def llm_to_tts():
+                """Yield tokens to TTS while remembering them for the text reply."""
+                async for token in llm.stream(utterance):
+                    reply_parts.append(token)
+                    yield token               # hand token to TTS as soon as we get it
+
+            # stream TTS audio to the browser
+            
+            async for audio_chunk in tts.stream(llm_to_tts()):
+                await ws.send_bytes(audio_chunk)
+
+            assistant_reply = "".join(reply_parts)     # full sentence for the UI
+
 
             await ws.send_json({
                 "transcript": utterance,
