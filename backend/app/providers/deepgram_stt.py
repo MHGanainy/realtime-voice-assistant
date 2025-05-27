@@ -1,215 +1,191 @@
+from __future__ import annotations
+
 import asyncio
-import json
 import logging
 from typing import AsyncIterator, Optional, Tuple
 
 from deepgram import DeepgramClient, DeepgramClientOptions, LiveTranscriptionEvents
 from deepgram.clients.listen import LiveOptions
 
-from ..interfaces.stt_base import STT
 from ..config import settings
+from ..interfaces.stt_base import STT
 
-# Logger setup
 logger = logging.getLogger(__name__)
 
 
 class DeepgramSTT(STT):
     """
-    Speech-to-Text provider using Deepgram SDK for WebSocket streaming.
+    Speech-to-Text provider with automatic reconnection & keep-alive.
     """
 
-    def __init__(self):
-        """Initialize the Deepgram client with API key from settings."""
-        # Initialize Deepgram client
-        config = DeepgramClientOptions(
-            api_key=settings.deepgram_api_key,
-            options={"keepalive": True}
-        )
-        self.client = DeepgramClient("", config)
+    # --------------------------------------------------------------------- #
+    # object lifecycle
+    # --------------------------------------------------------------------- #
+    def __init__(self) -> None:
+        cfg = DeepgramClientOptions(api_key=settings.deepgram_api_key, options={"keepalive": True})
+        self.client = DeepgramClient("", cfg)
+
+        # Runtime state (initialised in .stream)
         self.dg_connection = None
-        self._audio_queue = None
-        self._result_queue = None
-        self._sender_task = None
-        self._last_audio_time = None
+        self._sender_task: Optional[asyncio.Task] = None
+        self._result_queue: Optional[asyncio.Queue] = None
+        self._last_audio_time: Optional[float] = None
         self._connection_alive = False
-        
-    async def stream(self, audio_chunks: AsyncIterator[bytes]) -> AsyncIterator[Tuple[str, bool, bool]]:
+
+        # resilience knobs
+        self._max_retries = 5          # initial try + 4 retries
+        self._base_delay = 1.0         # seconds – first back-off
+
+    # --------------------------------------------------------------------- #
+    # public API – called from main app
+    # --------------------------------------------------------------------- #
+    async def stream(
+        self, audio_chunks: AsyncIterator[bytes]
+    ) -> AsyncIterator[Tuple[str, bool, bool]]:
         """
-        Stream audio chunks to Deepgram and yield transcription results.
-        
-        Args:
-            audio_chunks: Async iterator of audio bytes
-            
-        Yields:
-            Tuple of (transcript, is_final, speech_final)
+        Consume audio chunks and yield (transcript, is_final, speech_final).
+
+        Re-dials Deepgram automatically if the WS is dropped.
         """
-        # Create queues for communication
-        self._audio_queue = asyncio.Queue()
         self._result_queue = asyncio.Queue()
         self._connection_alive = True
-        
-        # Initialize WebSocket connection
-        self.dg_connection = self.client.listen.asyncwebsocket.v("1")
-        
-        # Set up event handlers
-        self._setup_event_handlers()
-        
-        # Configure Deepgram options
+
+        # Deepgram model / behaviour options (adjust as needed)
         options = LiveOptions(
             model="nova-2",
             punctuate=True,
-            interim_results=False,  # Set to False as in your original code
-            endpointing=200,  # 200ms VAD timeout (similar to your endpointing=200)
-            # encoding="linear16",
-            # sample_rate=16000,
-            # channels=1
+            interim_results=False,
+            endpointing=300,  # ms VAD timeout
         )
-        
-        try:
-            # Start the connection
-            if await self.dg_connection.start(options):
-                logger.info("Deepgram WebSocket connected successfully")
-                
-                # Start sender task
-                self._sender_task = asyncio.create_task(self._audio_sender(audio_chunks))
-                
-                # Start keepalive task
-                keepalive_task = asyncio.create_task(self._keepalive_sender())
-                
-                # Yield results as they come
+
+        async def open_connection() -> None:
+            """Connect (or reconnect) to Deepgram with exponential back-off."""
+            attempt = 0
+            delay = self._base_delay
+            while attempt <= self._max_retries:
+                try:
+                    self.dg_connection = self.client.listen.asyncwebsocket.v("1")
+                    self._setup_event_handlers()
+                    if await self.dg_connection.start(options):
+                        logger.info("Deepgram connected on attempt %d", attempt + 1)
+                        return
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Deepgram attempt %d failed – %s", attempt + 1, exc)
+
+                attempt += 1
+                if attempt > self._max_retries:
+                    raise RuntimeError("Deepgram: exhausted reconnect attempts")
+
+                logger.info("Retrying Deepgram in %.1fs …", delay)
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 30)  # cap back-off at 30 s
+
+        async def audio_sender() -> None:
+            """Forward microphone chunks to Deepgram."""
+            try:
+                async for chunk in audio_chunks:
+                    if self.dg_connection and self._connection_alive:
+                        await self.dg_connection.send(chunk)
+                        self._last_audio_time = asyncio.get_running_loop().time()
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Error sending audio to Deepgram: %s", exc)
+            finally:
+                self._connection_alive = False
+                await self._result_queue.put(None)  # poison pill
+
+        async def keepalive_sender() -> None:
+            """Ping Deepgram if no audio has flowed recently."""
+            try:
                 while self._connection_alive:
-                    try:
-                        result = await asyncio.wait_for(
-                            self._result_queue.get(), 
-                            timeout=5.0  # Reduced timeout, we'll use keepalive instead
+                    await asyncio.sleep(5)
+                    if (
+                        self.dg_connection
+                        and self._connection_alive
+                        and (
+                            self._last_audio_time is None
+                            or (asyncio.get_running_loop().time() - self._last_audio_time) > 5
                         )
-                        
-                        if result is None:  # Poison pill
-                            break
-                            
-                        transcript, is_final, speech_final = result
-                        yield transcript, is_final, speech_final
-                        
-                    except asyncio.TimeoutError:
-                        # This is now normal during long TTS playback
-                        # The keepalive will maintain the connection
-                        continue
-            else:
-                logger.error("Failed to connect to Deepgram")
-                raise Exception("Failed to connect to Deepgram WebSocket")
-                
-        except Exception as e:
-            logger.error(f"Error in Deepgram stream: {e}")
-            raise
-        finally:
-            self._connection_alive = False
-            keepalive_task.cancel()
-            try:
-                await keepalive_task
-            except asyncio.CancelledError:
+                    ):
+                        logger.debug("Sending Deepgram keep-alive")
+                        await self.dg_connection.keep_alive()
+            except asyncio.CancelledError:  # normal on shutdown
                 pass
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Keep-alive error: %s", exc)
+
+        # ------------------------- outer connection loop ------------------- #
+        await open_connection()
+
+        self._sender_task = asyncio.create_task(audio_sender())
+        keepalive_task = asyncio.create_task(keepalive_sender())
+
+        try:
+            while True:
+                result = await self._result_queue.get()
+                if result is None:  # poison pill – socket died
+                    # try to reconnect
+                    logger.info("Deepgram socket closed – reconnecting …")
+                    self._connection_alive = False
+                    await open_connection()  # may raise after retries
+
+                    # spin up fresh sender/keep-alive tasks
+                    self._sender_task = asyncio.create_task(audio_sender())
+                    if keepalive_task.done():
+                        keepalive_task = asyncio.create_task(keepalive_sender())
+                    continue
+
+                transcript, is_final, speech_final = result
+                yield transcript, is_final, speech_final
+        finally:
             await self._cleanup()
-    
-    def _setup_event_handlers(self):
-        """Set up event handlers for the Deepgram WebSocket connection."""
-        
-        async def on_message(dg_self, result, **kwargs):
-            """Handle transcription results."""
-            try:
-                # Extract the transcript from the result
-                if hasattr(result, 'channel') and result.channel.alternatives:
-                    alternative = result.channel.alternatives[0]
-                    transcript = alternative.transcript
-                    
-                    # Get the is_final flag (this indicates if the transcript is finalized)
-                    is_final = getattr(result, 'is_final', False)
-                    
-                    # Get speech_final flag (indicates end of utterance)
-                    speech_final = getattr(result, 'speech_final', False)
-                    
-                    # Debug log
-                    logger.debug(f"Received: '{transcript}' is_final={is_final} speech_final={speech_final}")
-                    
-                    # Only process non-empty transcripts
-                    if transcript:
-                        # Put result in queue
-                        await self._result_queue.put((transcript, is_final, speech_final))
-                        
-            except Exception as e:
-                logger.error(f"Error processing Deepgram message: {e}")
-        
-        async def on_error(dg_self, error, **kwargs):
-            """Handle errors from Deepgram."""
-            logger.error(f"Deepgram error: {error}")
+            keepalive_task.cancel()
+            with asyncio.SuppressCancelled():
+                await keepalive_task
+
+    # --------------------------------------------------------------------- #
+    # private helpers
+    # --------------------------------------------------------------------- #
+    def _setup_event_handlers(self) -> None:
+        """Register Deepgram WS event callbacks."""
+
+        async def on_transcript(dg_self, result, **_) -> None:
+            if hasattr(result, "channel") and result.channel.alternatives:
+                alt = result.channel.alternatives[0]
+                transcript = alt.transcript
+                if transcript:
+                    is_final = getattr(result, "is_final", False)
+                    speech_final = getattr(result, "speech_final", False)
+                    logger.debug(
+                        "DG result: %s | is_final=%s | speech_final=%s",
+                        transcript,
+                        is_final,
+                        speech_final,
+                    )
+                    await self._result_queue.put((transcript, is_final, speech_final))
+
+        async def on_error(dg_self, error, **_) -> None:
+            logger.error("Deepgram error: %s – will reconnect", error)
             self._connection_alive = False
-            # Put None to signal end of stream
-            await self._result_queue.put(None)
-        
-        async def on_close(dg_self, close, **kwargs):
-            """Handle connection close."""
-            logger.info("Deepgram connection closed")
+            await self._result_queue.put(None)  # poison pill
+
+        async def on_close(dg_self, close, **_) -> None:
+            logger.info("Deepgram closed: %s", close)
             self._connection_alive = False
-            # Put None to signal end of stream
-            await self._result_queue.put(None)
-        
-        # Register event handlers
-        self.dg_connection.on(LiveTranscriptionEvents.Transcript, on_message)
+            await self._result_queue.put(None)  # poison pill
+
+        self.dg_connection.on(LiveTranscriptionEvents.Transcript, on_transcript)
         self.dg_connection.on(LiveTranscriptionEvents.Error, on_error)
         self.dg_connection.on(LiveTranscriptionEvents.Close, on_close)
-    
-    async def _audio_sender(self, audio_chunks: AsyncIterator[bytes]):
-        """Send audio chunks to Deepgram WebSocket."""
-        try:
-            async for chunk in audio_chunks:
-                if self.dg_connection and self._connection_alive:
-                    await self.dg_connection.send(chunk)
-                    self._last_audio_time = asyncio.get_event_loop().time()
-            
-            # Send close stream message
-            if self.dg_connection and self._connection_alive:
+
+    async def _cleanup(self) -> None:
+        """Cancel tasks and close the Deepgram socket."""
+        if self._sender_task and not self._sender_task.done():
+            self._sender_task.cancel()
+            with asyncio.SuppressCancelled():
+                await self._sender_task
+
+        if self.dg_connection:
+            try:
                 await self.dg_connection.finish()
-                
-        except Exception as e:
-            logger.error(f"Error sending audio to Deepgram: {e}")
-        finally:
-            self._connection_alive = False
-            # Signal end of results
-            await self._result_queue.put(None)
-    
-    async def _keepalive_sender(self):
-        """Send keepalive messages to maintain connection during silence."""
-        try:
-            while self._connection_alive:
-                await asyncio.sleep(5.0)  # Send keepalive every 5 seconds
-                
-                if self.dg_connection and self._connection_alive:
-                    # Check if we haven't sent audio recently
-                    current_time = asyncio.get_event_loop().time()
-                    if self._last_audio_time is None or (current_time - self._last_audio_time) > 5.0:
-                        # The SDK's keepalive method maintains the connection
-                        logger.debug("Sending keepalive to maintain connection")
-                        await self.dg_connection.keep_alive()
-                        
-        except Exception as e:
-            logger.error(f"Error in keepalive sender: {e}")
-    
-    async def _cleanup(self):
-        """Clean up resources."""
-        try:
-            # Cancel sender task if running
-            if self._sender_task and not self._sender_task.done():
-                self._sender_task.cancel()
-                try:
-                    await self._sender_task
-                except asyncio.CancelledError:
-                    pass
-            
-            # Finish the connection
-            if self.dg_connection:
-                try:
-                    await self.dg_connection.finish()
-                except Exception as e:
-                    logger.error(f"Error finishing connection: {e}")
-                
-        except Exception as e:
-            logger.error(f"Error during cleanup: {e}")
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Error finishing Deepgram connection: %s", exc)
