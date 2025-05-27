@@ -1,6 +1,12 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-import asyncio, json
+import asyncio
+import json
+import logging
 from .providers import make_stt, make_llm, make_tts
+
+# Set up logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -41,20 +47,29 @@ async def websocket_endpoint(ws: WebSocket):
 
             # ---------- LLM → ElevenLabs TTS pipeline ----------
             reply_parts: list[str] = []
+            audio_chunks_sent = 0
 
             async def llm_to_tts():
                 """Yield tokens to TTS while remembering them for the text reply."""
+                token_count = 0
                 async for token in llm.stream(utterance):
                     reply_parts.append(token)
+                    token_count += 1
+                    print(f"LLM token {token_count}: '{token}'")
                     yield token               # hand token to TTS as soon as we get it
+                print(f"LLM finished streaming {token_count} tokens")
 
             # stream TTS audio to the browser
-            
-            async for audio_chunk in tts.stream(llm_to_tts()):
-                await ws.send_bytes(audio_chunk)
+            try:
+                async for audio_chunk in tts.stream(llm_to_tts()):
+                    await ws.send_bytes(audio_chunk)
+                    audio_chunks_sent += 1
+                    
+                print(f"TTS sent {audio_chunks_sent} audio chunks")
+            except Exception as e:
+                logger.error(f"Error streaming TTS: {e}", exc_info=True)
 
             assistant_reply = "".join(reply_parts)     # full sentence for the UI
-
 
             await ws.send_json({
                 "transcript": utterance,
