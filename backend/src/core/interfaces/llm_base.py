@@ -15,6 +15,7 @@ class LLMProvider(ABC):
     def __init__(self, config: Dict[str, Any]):
         self.config = config
         self.conversation_history: List[Message] = []
+        self._system_prompt = config.get('system_prompt', 'You are a helpful assistant.')
         
     async def __aenter__(self):
         """Async context manager entry"""
@@ -62,3 +63,11 @@ class LLMProvider(ABC):
     def clear_history(self) -> None:
         """Clear conversation history"""
         self.conversation_history.clear()
+        
+    def set_system_prompt(self, prompt: str) -> None:
+        """Set the system prompt for the assistant"""
+        self._system_prompt = prompt
+        
+    def get_system_prompt(self) -> str:
+        """Get the current system prompt"""
+        return self._system_prompt
