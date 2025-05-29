@@ -2,15 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import "./App.css";
 
 /**
- * Real-time voice-assistant test harness
+ * Real‑time voice‑assistant test harness
  * -------------------------------------
- * 1. ▶ Start → opens ws:// backend + mic, begins 250 ms Opus chunks
+ * 1. ▶ Start → opens ws:// backend + mic, begins 250 ms Opus chunks
  * 2. Backend returns:
- *      • {command:"pause"|"resume"}            → flow-control
- *      • {transcript:"…", final:false}         → live caption (optional)
- *      • {transcript:"…", final:true,
- *         response:"…"}                        → finished utterance
- *      • binary (audio/mpeg)                   → ElevenLabs MP3 stream
+ *      • {command:"pause"|"resume"}            → flow‑control
+ *      • {type:"interaction_complete", …}       → finished utterance
+ *      • {transcript:"…", final:false}           → live caption
+ *      • {transcript:"…", final:true}            → user’s utterance (fallback)
+ *      • binary (audio/mpeg)                     → ElevenLabs MP3 stream
  * 3. ■ Stop (or backend closes) → mic + WS close
  */
 export default function App() {
@@ -20,18 +20,18 @@ export default function App() {
   const [assistantReply, setAssistantReply] = useState("");
   const [isRecording, setIsRecording] = useState(false);
 
-  const socketRef             = useRef(null);
-  const recorderRef           = useRef(null);
-  const sendAudioRef          = useRef(true);      // backend flow-flag
-  const expectNewAudioRef     = useRef(false);     // set on "pause"
+  const socketRef = useRef(null);
+  const recorderRef = useRef(null);
+  const sendAudioRef = useRef(true);           // backend flow‑flag
+  const expectNewAudioRef = useRef(false);     // set on "pause"
 
-  /* ---- media-pipeline plumbing ---------------------------------------- */
-  const mediaSrcRef           = useRef(null);      // MediaSource
-  const sourceBufRef          = useRef(null);      // SourceBuffer (audio/mpeg)
-  const pendingChunksRef      = useRef([]);        // Uint8Array[] waiting
-  const audioRef              = useRef(null);      // <audio> element
+  /* ---- media‑pipeline plumbing ------------------------------------ */
+  const mediaSrcRef = useRef(null);      // MediaSource
+  const sourceBufRef = useRef(null);     // SourceBuffer (audio/mpeg)
+  const pendingChunksRef = useRef([]);   // Uint8Array[] waiting
+  const audioRef = useRef(null);         // <audio> element
 
-  /* ---- helpers -------------------------------------------------------- */
+  /* ---- helpers ---------------------------------------------------- */
   function teardownMediaSource() {
     audioRef.current?.pause();
     if (audioRef.current?.src?.startsWith("blob:")) {
@@ -44,23 +44,22 @@ export default function App() {
   }
 
   function initMediaSource() {
-    if (mediaSrcRef.current) return;               // already open
+    if (mediaSrcRef.current) return;           // already open
 
     mediaSrcRef.current = new MediaSource();
     const url = URL.createObjectURL(mediaSrcRef.current);
     audioRef.current = new Audio(url);
 
-    audioRef.current.play().catch(() => {
-      /* user gesture may be required – ignore here, we retry later */
-    });
+    // autoplay can fail until user gesture; ignore promise
+    audioRef.current.play().catch(() => {});
 
     mediaSrcRef.current.addEventListener("sourceopen", () => {
       sourceBufRef.current =
         mediaSrcRef.current.addSourceBuffer("audio/mpeg");
-      sourceBufRef.current.mode = "sequence";      // back-to-back MP3
+      sourceBufRef.current.mode = "sequence";  // back‑to‑back MP3
 
       sourceBufRef.current.addEventListener("updateend", flushPending);
-      flushPending();                              // flush early chunks
+      flushPending();                          // flush early chunks
     });
   }
 
@@ -120,10 +119,17 @@ export default function App() {
       if (typeof e.data === "string") {
         const msg = JSON.parse(e.data);
 
-        /* ---- flow-control from backend ----------------------------- */
+        /* ---- assistant finished reply ----------------------------- */
+        if (msg.type === "interaction_complete") {
+          setUserTranscript(msg.utterance);
+          setAssistantReply(msg.response);
+          return;
+        }
+
+        /* ---- flow‑control from backend ---------------------------- */
         if (msg.command === "pause") {
           sendAudioRef.current = false;
-          expectNewAudioRef.current = true;        // next binary = new reply
+          expectNewAudioRef.current = true;     // next binary = new reply
           recorderRef.current?.pause();
           return;
         }
@@ -133,17 +139,19 @@ export default function App() {
           return;
         }
 
-        /* ---- transcript / assistant text --------------------------- */
+        /* ---- transcript / assistant text (fallback) -------------- */
         if (msg.final) {
           setUserTranscript(msg.transcript);
-          setAssistantReply(msg.response ?? msg.transcript ?? "");
+          if (msg.response) {
+            setAssistantReply(msg.response);
+          }
         } else if (msg.transcript) {
           setUserTranscript(msg.transcript);
         }
       } else {
-        /* ---- streamed MP3 bytes from ElevenLabs -------------------- */
+        /* ---- streamed MP3 bytes from ElevenLabs ------------------ */
         if (expectNewAudioRef.current) {
-          /* first chunk of a brand-new TTS reply – rebuild pipeline   */
+          /* first chunk of a brand‑new TTS reply – rebuild pipeline */
           teardownMediaSource();
           expectNewAudioRef.current = false;
         }
@@ -169,7 +177,7 @@ export default function App() {
 
   useEffect(() => () => stopRecording(), []);
 
-  /* ---- UI ----------------------------------------------------------- */
+  /* ---- UI --------------------------------------------------------- */
   return (
     <main className="flex flex-col items-center gap-6 p-8 text-center">
       <h1 className="text-3xl font-bold">Voice Assistant Tester</h1>
@@ -182,7 +190,7 @@ export default function App() {
             : "bg-green-600 hover:bg-green-700"
         }`}
       >
-        {isRecording ? "Stop" : "Start"} talking
+        {`${isRecording ? "Stop" : "Start"} talking`}
       </button>
 
       <section className="w-full max-w-xl space-y-4">
