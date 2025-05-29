@@ -59,9 +59,8 @@ class OpenAIChat(LLMProvider):
         """Prepare messages for OpenAI API"""
         messages = []
         
-        # Add system prompt
-        system_prompt = self.config.get("system_prompt", "You are a helpful assistant.")
-        messages.append({"role": "system", "content": system_prompt})
+        # Add system prompt - use the dynamic prompt set via set_system_prompt()
+        messages.append({"role": "system", "content": self._system_prompt})
         
         # Add context or history
         if context:

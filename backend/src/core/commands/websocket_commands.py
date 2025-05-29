@@ -11,6 +11,7 @@ class CommandType(str, Enum):
     CLEAR_HISTORY = "clear_history"
     SET_CONFIG = "set_config"
     GET_STATUS = "get_status"
+    SET_PROMPT = "set_prompt"  # New command type
 
 class Command(ABC):
     """Base command interface"""
@@ -95,11 +96,35 @@ class ClearHistoryCommand(Command):
             
         return {
             "command": CommandType.CLEAR_HISTORY,
-            "status": "cleared"
+            "status": "cleared",
+            "type": "command_response"
         }
         
     def validate(self) -> bool:
         return True
+
+class SetPromptCommand(Command):
+    """Set system prompt command"""
+    
+    def __init__(self, prompt: str):
+        self.prompt = prompt
+        
+    async def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Set the system prompt for the LLM"""
+        pipeline = context.get("pipeline")
+        if pipeline and pipeline.llm:
+            # Set the system prompt in the LLM provider
+            pipeline.llm.set_system_prompt(self.prompt)
+            
+        return {
+            "command": CommandType.SET_PROMPT,
+            "status": "updated",
+            "prompt": self.prompt,
+            "type": "command_response"
+        }
+        
+    def validate(self) -> bool:
+        return isinstance(self.prompt, str) and len(self.prompt.strip()) > 0
 
 class SetConfigCommand(Command):
     """Update configuration command"""
@@ -136,7 +161,10 @@ class GetStatusCommand(Command):
         if pipeline:
             status["providers"] = {
                 "stt": {"connected": pipeline.stt.is_connected},
-                "llm": {"history_length": len(pipeline.llm.conversation_history)},
+                "llm": {
+                    "history_length": len(pipeline.llm.conversation_history),
+                    "system_prompt": getattr(pipeline.llm, '_system_prompt', 'Default prompt')
+                },
                 "tts": {"active": True}
             }
             
@@ -155,6 +183,7 @@ class CommandFactory:
         CommandType.CLEAR_HISTORY: ClearHistoryCommand,
         CommandType.SET_CONFIG: SetConfigCommand,
         CommandType.GET_STATUS: GetStatusCommand,
+        CommandType.SET_PROMPT: SetPromptCommand,  # Add new command
     }
     
     @classmethod
