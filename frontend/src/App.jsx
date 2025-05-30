@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import "./App.css";
 
 /**
- * Real‑time voice‑assistant development testing interface
+ * Real‑time voice‑assistant development testing interface with latency tracking
  */
 export default function App() {
   const WS_URL = import.meta.env.VITE_WS_URL || "ws://localhost:8000/ws";
@@ -17,6 +17,15 @@ export default function App() {
   const [connectionStatus, setConnectionStatus] = useState("disconnected");
   const [conversationHistory, setConversationHistory] = useState([]);
   const [logs, setLogs] = useState([]);
+  
+  // Latency tracking states
+  const [latencyMetrics, setLatencyMetrics] = useState({
+    stt: null,
+    llm: null,
+    tts: null,
+    total: null
+  });
+  const [latencyHistory, setLatencyHistory] = useState([]);
 
   const socketRef = useRef(null);
   const recorderRef = useRef(null);
@@ -34,6 +43,39 @@ export default function App() {
     const timestamp = new Date().toLocaleTimeString();
     setLogs(prev => [...prev, { timestamp, message, type }]);
   };
+  
+  /* ---- Latency Display Component ---------------------------------- */
+  const LatencyDisplay = ({ metrics }) => (
+    <div className="latency-display">
+      <h3>Current Latencies</h3>
+      <div className="latency-grid">
+        <div className="latency-item">
+          <span className="latency-label">STT</span>
+          <span className="latency-value">
+            {metrics.stt !== null ? `${metrics.stt}ms` : '--'}
+          </span>
+        </div>
+        <div className="latency-item">
+          <span className="latency-label">LLM</span>
+          <span className="latency-value">
+            {metrics.llm !== null ? `${metrics.llm}ms` : '--'}
+          </span>
+        </div>
+        <div className="latency-item">
+          <span className="latency-label">TTS</span>
+          <span className="latency-value">
+            {metrics.tts !== null ? `${metrics.tts}ms` : '--'}
+          </span>
+        </div>
+        <div className="latency-item total">
+          <span className="latency-label">Total</span>
+          <span className="latency-value">
+            {metrics.total !== null ? `${metrics.total}ms` : '--'}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
 
   /* ---- helpers ---------------------------------------------------- */
   function teardownMediaSource() {
@@ -148,6 +190,25 @@ export default function App() {
           ]);
           addLog("Interaction complete", "success");
           return;
+        }
+        
+        if (msg.type === "latency_metrics") {
+          const metrics = {
+            stt: msg.stt_ms,
+            llm: msg.llm_ms,
+            tts: msg.tts_ms,
+            total: msg.total_ms,
+            timestamp: new Date(),
+            utterance: msg.utterance
+          };
+          
+          setLatencyMetrics(metrics);
+          setLatencyHistory(prev => [...prev.slice(-19), metrics]); // Keep last 20
+          
+          addLog(
+            `Latencies - STT: ${msg.stt_ms}ms, LLM: ${msg.llm_ms}ms, TTS: ${msg.tts_ms}ms, Total: ${msg.total_ms}ms`,
+            "metrics"
+          );
         }
 
         if (msg.command === "pause") {
@@ -305,6 +366,11 @@ export default function App() {
               </div>
             </button>
           </div>
+          
+          {/* Latency Metrics Section */}
+          <section className="metrics-section">
+            <LatencyDisplay metrics={latencyMetrics} />
+          </section>
 
           {/* Current Interaction */}
           <section className="current-interaction">
