@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: voice-assistant-backend
+    environment:
+      # API Keys - these should be set in your .env file or environment
+      - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ELEVEN_API_KEY=${ELEVEN_API_KEY}
+      
+      # Optional: Override default settings
+      - DEEPGRAM_MODEL=${DEEPGRAM_MODEL:-nova-2}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-3.5-turbo}
+      - OPENAI_TEMPERATURE=${OPENAI_TEMPERATURE:-0.7}
+      - ELEVEN_VOICE_ID=${ELEVEN_VOICE_ID:-EXAVITQu4vr4xnSDxMaL}
+      
+      # Application settings
+      - APP_DEBUG=${APP_DEBUG:-false}
+      - STT_PROVIDER=${STT_PROVIDER:-deepgram}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      - TTS_PROVIDER=${TTS_PROVIDER:-elevenlabs}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./logs:/app/logs
+      # Mount .env file for local development
+      - ./backend/.env:/app/.env:ro
+    networks:
+      - voice-assistant-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_WS_URL=ws://localhost:8000/ws
+    container_name: voice-assistant-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - voice-assistant-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  voice-assistant-network:
+    driver: bridge
+
+volumes:
+  logs:
+    driver: local
