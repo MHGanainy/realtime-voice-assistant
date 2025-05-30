@@ -32,6 +32,9 @@ class EventType(str, Enum):
     WARNING = "system.warning"
     COMMAND = "system.command"
     METRICS = "system.metrics"
+    
+    # Metrics Events
+    LATENCY_METRICS = "metrics.latency"
 
 class Event(BaseModel):
     """Base event model"""
@@ -85,3 +88,14 @@ class MetricsEvent(Event):
     
     def __init__(self, **kwargs):
         super().__init__(type=EventType.METRICS, **kwargs)
+
+class LatencyMetricsEvent(Event):
+    """Latency metrics event"""
+    stt_latency_ms: float
+    llm_latency_ms: float
+    tts_latency_ms: float
+    total_latency_ms: float
+    utterance: Optional[str] = None
+    
+    def __init__(self, **kwargs):
+        super().__init__(type=EventType.LATENCY_METRICS, **kwargs)

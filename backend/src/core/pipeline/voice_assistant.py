@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from typing import AsyncIterator, Optional, Dict, Any, List, Callable
 from contextlib import AsyncExitStack
 from ..interfaces.stt_base import STTProvider
@@ -39,6 +40,12 @@ class VoiceAssistantPipeline:
         self.transcript_buffer: List[str] = []
         self._tasks: List[asyncio.Task] = []
         self._correlation_id = None
+        
+        # Latency tracking
+        self._latency_metrics: Dict[str, float] = {}
+        self._utterance_start_time: Optional[float] = None
+        self._audio_start_time: Optional[float] = None
+        self._first_transcript_time: Optional[float] = None
         
     async def __aenter__(self):
         """Async context manager entry"""
@@ -151,14 +158,30 @@ class VoiceAssistantPipeline:
         self, 
         audio_source: AsyncIterator[bytes]
     ) -> AsyncIterator[TranscriptEvent]:
-        """Process audio through STT provider"""
-        # Log that we're starting STT processing
+        """Process audio through STT provider with timing"""
         logger.debug("Starting STT processing")
+        
+        # Reset timing for new session
+        self._audio_start_time = None
+        self._first_transcript_time = None
         
         # Stream audio through STT provider
         async for event in self.stt.stream(audio_source):
             event.correlation_id = self._correlation_id
             await self._publish_event(event)
+            
+            # Track first audio received
+            if self._audio_start_time is None:
+                self._audio_start_time = time.time()
+                logger.debug("First audio received")
+            
+            # Track first transcript
+            if event.transcript and self._first_transcript_time is None:
+                self._first_transcript_time = time.time()
+                # Calculate STT latency (time to first transcript)
+                stt_latency = self._first_transcript_time - self._audio_start_time
+                self._latency_metrics['stt_latency'] = stt_latency
+                logger.info(f"STT latency: {stt_latency * 1000:.2f}ms")
             
             # Only add final transcripts to buffer
             if event.is_final and event.transcript:
@@ -177,10 +200,14 @@ class VoiceAssistantPipeline:
         self, 
         event_handler: Optional[Callable[[Event], None]]
     ) -> None:
-        """Process complete utterance through LLM and TTS"""
+        """Process complete utterance through LLM and TTS with latency tracking"""
         if not self.transcript_buffer:
             return
             
+        # Start total timing
+        pipeline_start = time.time()
+        self._utterance_start_time = pipeline_start
+        
         # Get the complete utterance and immediately clear the buffer
         utterance = " ".join(self.transcript_buffer)
         self.transcript_buffer.clear()  # Clear immediately to prevent accumulation
@@ -213,11 +240,44 @@ class VoiceAssistantPipeline:
                     correlation_id=self._correlation_id
                 ))
             
-            # Process through LLM
+            # Process through LLM with timing
+            llm_start = time.time()
             response = await self._process_llm(utterance, event_handler)
+            llm_end = time.time()
+            llm_latency = llm_end - llm_start
             
-            # Process through TTS
+            # Process through TTS with timing
+            tts_start = time.time()
             await self._process_tts(response, event_handler)
+            tts_end = time.time()
+            tts_latency = tts_end - tts_start
+            
+            # Calculate total latency
+            total_latency = time.time() - pipeline_start
+            
+            # Get STT latency from metrics
+            stt_latency = self._latency_metrics.get('stt_latency', 0)
+            
+            # Emit latency metrics
+            latency_event = Event(
+                type=EventType.LATENCY_METRICS,
+                source="pipeline",
+                data={
+                    "stt_latency_ms": round(stt_latency * 1000, 2),
+                    "llm_latency_ms": round(llm_latency * 1000, 2),
+                    "tts_latency_ms": round(tts_latency * 1000, 2),
+                    "total_latency_ms": round(total_latency * 1000, 2),
+                    "utterance": utterance[:50] + "..." if len(utterance) > 50 else utterance
+                },
+                correlation_id=self._correlation_id
+            )
+            
+            logger.info(f"Pipeline latencies - STT: {stt_latency*1000:.2f}ms, LLM: {llm_latency*1000:.2f}ms, TTS: {tts_latency*1000:.2f}ms, Total: {total_latency*1000:.2f}ms")
+            
+            await self._publish_event(latency_event)
+            
+            if event_handler:
+                await event_handler(latency_event)
             
             # Signal resume
             if event_handler:
@@ -235,6 +295,10 @@ class VoiceAssistantPipeline:
             await self._handle_error(e, "utterance_processing", event_handler)
         finally:
             self.is_processing = False
+            # Reset latency metrics for next utterance
+            self._latency_metrics.clear()
+            self._audio_start_time = None
+            self._first_transcript_time = None
             
     async def _process_llm(
         self,
@@ -242,7 +306,7 @@ class VoiceAssistantPipeline:
         event_handler: Optional[Callable[[Event], None]]
     ) -> str:
         """
-        Send the user’s utterance to the LLM, stream tokens out,
+        Send the user's utterance to the LLM, stream tokens out,
         and deliver the finished answer both to the event-bus *and*
         to the WebSocket handler (so the React UI can show it).
         """

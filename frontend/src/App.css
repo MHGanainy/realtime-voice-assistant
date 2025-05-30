@@ -485,3 +485,91 @@ section {
     flex: 1;
   }
 }
+/* Metrics Section */
+.metrics-section {
+  border-bottom: 1px solid #222;
+  padding: 1rem;
+}
+
+/* Latency Display */
+.latency-display {
+  background: #111;
+  padding: 1rem;
+  border-radius: 4px;
+  border: 1px solid #222;
+}
+
+.latency-display h3 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #888;
+  margin-bottom: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.latency-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+}
+
+.latency-item {
+  background: #1a1a1a;
+  padding: 0.75rem;
+  border-radius: 4px;
+  text-align: center;
+  border: 1px solid #222;
+  transition: all 0.2s;
+}
+
+.latency-item:hover {
+  border-color: #333;
+  background: #1f1f1f;
+}
+
+.latency-item.total {
+  background: #1e3a8a;
+  border-color: #2563eb;
+}
+
+.latency-item.total:hover {
+  background: #1e40af;
+  border-color: #3b82f6;
+}
+
+.latency-label {
+  display: block;
+  font-size: 0.688rem;
+  color: #666;
+  margin-bottom: 0.25rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.latency-value {
+  display: block;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #fff;
+  font-family: 'Monaco', 'Consolas', monospace;
+}
+
+.latency-item.total .latency-label,
+.latency-item.total .latency-value {
+  color: #fff;
+}
+
+/* Latency value color coding */
+.latency-value.good {
+  color: #10b981;
+}
+
+.latency-value.warning {
+  color: #f59e0b;
+}
+
+.latency-value.critical {
+  color: #ef4444;
+}

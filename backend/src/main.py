@@ -215,51 +215,62 @@ class WebSocketHandler:
             })
             
     async def _handle_pipeline_event(self, event: Event):
-        """Handle events from the pipeline"""
-        try:
-            if event.type == EventType.TRANSCRIPT_PARTIAL:
-                # Optional: Send partial transcripts
-                await self.ws.send_json({
-                    "type": "transcript",
-                    "transcript": event.data["transcript"],
-                    "final": False
-                })
-                
-            elif event.type == EventType.TRANSCRIPT_FINAL:
-                await self.ws.send_json({
-                    "type": "transcript",
-                    "transcript": event.data["transcript"],
-                    "final": True
-                })
-                
-            elif event.type == EventType.TTS_CHUNK:
-                # Send audio chunk
-                await self.ws.send_bytes(event.audio_chunk)
-                
-            elif event.type == EventType.LLM_COMPLETE:
-                # Send complete interaction data
-                await self.ws.send_json({
-                    "type": "interaction_complete",
-                    "utterance": event.data["utterance"],
-                    "response": event.data["response"],
-                    "token_count": event.data["token_count"]
-                })
-                
-            elif event.type == EventType.COMMAND:
-                # Send control commands
-                await self.ws.send_json(event.data)
-                
-            elif event.type == EventType.ERROR:
-                # Send error information
-                await self.ws.send_json({
-                    "type": "error",
-                    "error": event.data["error"],
-                    "phase": event.data.get("phase", "unknown"),
-                    "retry_attempt": event.data.get("retry_attempt")
-                })
-                
-        except Exception as e:
-            logger.error(f"Error handling event: {e}", exc_info=True)
+            """Handle events from the pipeline"""
+            try:
+                if event.type == EventType.TRANSCRIPT_PARTIAL:
+                    # Optional: Send partial transcripts
+                    await self.ws.send_json({
+                        "type": "transcript",
+                        "transcript": event.data["transcript"],
+                        "final": False
+                    })
+                    
+                elif event.type == EventType.TRANSCRIPT_FINAL:
+                    await self.ws.send_json({
+                        "type": "transcript",
+                        "transcript": event.data["transcript"],
+                        "final": True
+                    })
+                    
+                elif event.type == EventType.TTS_CHUNK:
+                    # Send audio chunk
+                    await self.ws.send_bytes(event.audio_chunk)
+                    
+                elif event.type == EventType.LLM_COMPLETE:
+                    # Send complete interaction data
+                    await self.ws.send_json({
+                        "type": "interaction_complete",
+                        "utterance": event.data["utterance"],
+                        "response": event.data["response"],
+                        "token_count": event.data["token_count"]
+                    })
+                    
+                elif event.type == EventType.COMMAND:
+                    # Send control commands
+                    await self.ws.send_json(event.data)
+                    
+                elif event.type == EventType.LATENCY_METRICS:
+                    # Send latency metrics to frontend
+                    await self.ws.send_json({
+                        "type": "latency_metrics",
+                        "stt_ms": event.data["stt_latency_ms"],
+                        "llm_ms": event.data["llm_latency_ms"],
+                        "tts_ms": event.data["tts_latency_ms"],
+                        "total_ms": event.data["total_latency_ms"],
+                        "utterance": event.data.get("utterance", "")
+                    })
+                    
+                elif event.type == EventType.ERROR:
+                    # Send error information
+                    await self.ws.send_json({
+                        "type": "error",
+                        "error": event.data["error"],
+                        "phase": event.data.get("phase", "unknown"),
+                        "retry_attempt": event.data.get("retry_attempt")
+                    })
+                    
+            except Exception as e:
+                logger.error(f"Error handling event: {e}", exc_info=True)
             
     async def _cleanup(self):
         """Cleanup resources"""
