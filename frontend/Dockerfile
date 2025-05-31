@@ -5,16 +5,16 @@ FROM node:18-alpine AS builder
 WORKDIR /app
 
 # Copy package files
-COPY package.json package-lock.json* ./
+COPY package.json ./
 
-# Install all dependencies (including dev dependencies for build)
-RUN npm ci
+# Install dependencies - use npm install for flexibility
+RUN npm install
 
 # Copy source code
 COPY . .
 
-# Build argument for WebSocket URL
-ARG VITE_WS_URL=ws://localhost:8000/ws
+# Build argument for WebSocket URL (pointing to your backend)
+ARG VITE_WS_URL=wss://backend-va-production.up.railway.app
 ENV VITE_WS_URL=$VITE_WS_URL
 
 # Build the application
@@ -26,7 +26,7 @@ FROM nginx:alpine
 # Copy built files from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy nginx site configuration (safer than overwriting main config)
+# Copy nginx configuration
 COPY default.conf /etc/nginx/conf.d/default.conf
 
 # Expose port
