@@ -11,7 +11,7 @@ export default function App() {
   const [conversationHistory, setConversationHistory] = useState([]);
   const [logs, setLogs] = useState([]);
   const [currentInteraction, setCurrentInteraction] = useState({ user: '', assistant: '' });
-  const [latencyData, setLatencyData] = useState({ llm: 0, tts: 0, total: 0 });
+  const [latencyData, setLatencyData] = useState({ stt: 0, llm: 0, tts: 0, total: 0 });
   
   const wsRef = useRef(null);
   const dataWsRef = useRef(null);
@@ -231,8 +231,6 @@ export default function App() {
         } else if (data.type === 'assistant_reply') {
           setCurrentInteraction(prev => ({ ...prev, assistant: data.text }));
           if (data.final && startTimeRef.current) {
-            const totalTime = Date.now() - startTimeRef.current;
-            setLatencyData(prev => ({ ...prev, total: totalTime }));
             addLog('info', `Assistant: ${data.text}`);
             startTimeRef.current = null;
           }
@@ -243,6 +241,10 @@ export default function App() {
           setSystemPrompt(data.prompt);
           setTempSystemPrompt(data.prompt);
           addLog('info', 'System prompt received from backend');
+        } else if (data.type === 'latency_update') {
+          // Handle latency updates from backend
+          setLatencyData(data.latencies);
+          addLog('debug', `Latencies - STT: ${data.latencies.stt}ms, LLM: ${data.latencies.llm}ms, TTS: ${data.latencies.tts}ms, Total: ${data.latencies.total}ms`);
         } else if (data.type === 'log') {
           // Handle logs from backend
           if (data.message && !data.message.includes('Sent to frontend')) {
@@ -503,6 +505,10 @@ export default function App() {
           <section className="latencies-section">
             <h2>CURRENT LATENCIES</h2>
             <div className="latency-grid">
+              <div className="latency-item">
+                <div className="latency-label">STT</div>
+                <div className="latency-value">{latencyData.stt}ms</div>
+              </div>
               <div className="latency-item">
                 <div className="latency-label">LLM</div>
                 <div className="latency-value">{latencyData.llm}ms</div>

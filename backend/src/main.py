@@ -6,20 +6,97 @@ import asyncio
 import os
 import sys
 import json
+import re
 from pathlib import Path
 from dotenv import load_dotenv
 from loguru import logger
 import websockets
 from typing import Set, Optional, List, Dict
 from datetime import datetime
+import time
 
 # Load environment variables
 env_path = Path(__file__).parent.parent / '.env'
 load_dotenv(env_path)
 
-# Setup logging
+# Setup logging with custom handler
+class MetricsLogHandler:
+    """Custom log handler to capture metrics from Pipecat logs"""
+    def __init__(self):
+        self.last_stt_time = None
+        self.last_llm_time = None
+        self.last_tts_time = None
+        
+    def handle(self, message):
+        global latency_metrics
+        
+        try:
+            # The message parameter is already a string
+            # Debug: Log all messages that contain service names and TTFB
+            if "Service#" in message and "TTFB:" in message:
+                print(f"[METRICS DEBUG] Found TTFB message: {message}")
+            
+            # Check if this is a metrics log
+            if "TTFB:" in message:
+                # Extract TTFB values with updated regex pattern
+                match = re.search(r'(\w+Service)#\d+ TTFB: ([\d.]+)', message)
+                if match:
+                    service_type = match.group(1)
+                    ttfb_value = float(match.group(2))
+                    ttfb_ms = int(ttfb_value * 1000)
+                    
+                    print(f"[METRICS DEBUG] Parsed service: {service_type}, TTFB: {ttfb_ms}ms")
+                    
+                    if "OpenAISTTService" in service_type:
+                        latency_metrics["stt"] = ttfb_ms
+                        self.last_stt_time = time.time()
+                        print(f"[METRICS] Captured STT latency: {ttfb_ms}ms")
+                        
+                    elif "OpenAILLMService" in service_type:
+                        latency_metrics["llm"] = ttfb_ms
+                        self.last_llm_time = time.time()
+                        print(f"[METRICS] Captured LLM latency: {ttfb_ms}ms")
+                        
+                    elif "ElevenLabsTTSService" in service_type:
+                        latency_metrics["tts"] = ttfb_ms
+                        self.last_tts_time = time.time()
+                        print(f"[METRICS] Captured TTS latency: {ttfb_ms}ms")
+                        
+                        # Calculate total and send update
+                        if latency_metrics["interaction_start"]:
+                            total_time = int((time.time() - latency_metrics["interaction_start"]) * 1000)
+                            latency_metrics["total"] = total_time
+                            print(f"[METRICS] Total interaction time: {total_time}ms")
+                            
+                            # Send to frontend
+                            asyncio.create_task(broadcast_latencies())
+                            print(f"[METRICS] Broadcasting latencies: {latency_metrics}")
+                            
+                            # Reset interaction start for next interaction
+                            latency_metrics["interaction_start"] = None
+        except Exception as e:
+            print(f"[METRICS ERROR] Error in metrics handler: {e}")
+            import traceback
+            traceback.print_exc()
+
+metrics_handler = MetricsLogHandler()
+
+async def broadcast_latencies():
+    """Broadcast latency metrics to all frontend clients"""
+    message = {
+        "type": "latency_update",
+        "latencies": {
+            "stt": latency_metrics["stt"],
+            "llm": latency_metrics["llm"],
+            "tts": latency_metrics["tts"],
+            "total": latency_metrics["total"]
+        }
+    }
+    await broadcast_to_all_clients(message)
+
 logger.remove(0)
 logger.add(sys.stderr, level="DEBUG")
+logger.add(metrics_handler.handle, level="DEBUG", filter=lambda record: True)
 
 # Pipecat imports
 from pipecat.audio.vad.silero import SileroVADAnalyzer
@@ -72,6 +149,15 @@ pipeline_task = None
 context = None
 context_aggregator = None
 
+# Global latency tracking
+latency_metrics = {
+    "stt": 0,
+    "llm": 0,
+    "tts": 0,
+    "total": 0,
+    "interaction_start": None
+}
+
 
 class TranscriptionCapture(FrameProcessor):
     """Capture user transcriptions immediately after STT"""
@@ -83,11 +169,33 @@ class TranscriptionCapture(FrameProcessor):
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
         
-        global conversation_history
+        global conversation_history, latency_metrics
         
         try:
+            # Mark start of interaction on first interim transcription
+            if isinstance(frame, InterimTranscriptionFrame):
+                if not latency_metrics["interaction_start"]:
+                    latency_metrics["interaction_start"] = time.time()
+                    logger.info("Interaction started (first interim transcription)")
+                    print(f"[METRICS] Interaction started at: {latency_metrics['interaction_start']}")
+                
+                logger.debug(f"Interim: {frame.text}")
+                await self._broadcast_to_frontend({
+                    "type": "transcription",
+                    "text": frame.text,
+                    "final": False
+                })
+                
             # Capture final transcriptions
-            if isinstance(frame, TranscriptionFrame):
+            elif isinstance(frame, TranscriptionFrame):
+                # If we didn't catch the start from interim, mark it now
+                if not latency_metrics["interaction_start"]:
+                    # Estimate start time based on typical STT processing time
+                    # This is a fallback since OpenAI Whisper doesn't send interim transcriptions
+                    latency_metrics["interaction_start"] = time.time() - 2.0  # Assume ~2 seconds of audio
+                    logger.info("Interaction start estimated from final transcription")
+                    print(f"[METRICS] Interaction start estimated at: {latency_metrics['interaction_start']}")
+                
                 logger.info(f"🎤 User said: {frame.text}")
                 self.current_transcription = frame.text
                 
@@ -109,15 +217,6 @@ class TranscriptionCapture(FrameProcessor):
                 await self._broadcast_to_frontend({
                     "type": "conversation_history",
                     "history": conversation_history
-                })
-                
-            # Capture interim transcriptions
-            elif isinstance(frame, InterimTranscriptionFrame):
-                logger.debug(f"Interim: {frame.text}")
-                await self._broadcast_to_frontend({
-                    "type": "transcription",
-                    "text": frame.text,
-                    "final": False
                 })
                 
         except Exception as e:
@@ -269,6 +368,17 @@ async def handle_frontend_connection(websocket, path):
             "history": conversation_history
         }))
         
+        # Send current latencies
+        await websocket.send(json.dumps({
+            "type": "latency_update",
+            "latencies": {
+                "stt": latency_metrics["stt"],
+                "llm": latency_metrics["llm"],
+                "tts": latency_metrics["tts"],
+                "total": latency_metrics["total"]
+            }
+        }))
+        
         # Handle messages from frontend
         async for message in websocket:
             try:
@@ -292,10 +402,6 @@ async def handle_frontend_connection(websocket, path):
                                 }
                             ]
                             context.set_messages(new_messages)
-                            
-                            # Send context update frame
-                            # if pipeline_task:
-                            #     await pipeline_task.queue_frames([context_aggregator.user().get_context_frame()])
                             
                             logger.info("Reset LLM context with new system prompt")
                         
@@ -372,7 +478,7 @@ async def run_frontend_server():
 
 
 async def main():
-    global current_system_prompt, pipeline_task, context, context_aggregator
+    global current_system_prompt, pipeline_task, context, context_aggregator, latency_metrics
     
     # Start the frontend WebSocket server
     frontend_server = asyncio.create_task(run_frontend_server())
@@ -439,13 +545,15 @@ async def main():
         ]
     )
     
-    # Create task
+    # Create task with metrics enabled
     pipeline_task = PipelineTask(
         pipeline,
         params=PipelineParams(
             audio_in_sample_rate=16000,
             audio_out_sample_rate=16000,
             allow_interruptions=True,
+            enable_metrics=True,           # Enable performance metrics
+            report_only_initial_ttfb=False, # Get TTFB for each interaction
         ),
     )
     
@@ -453,7 +561,12 @@ async def main():
     async def on_client_connected(transport, client):
         logger.info(f"Audio client connected from {client.remote_address}")
         
-        # Don't send any initial context - wait for user to speak first
+        # Reset metrics for new client
+        latency_metrics["interaction_start"] = None
+        latency_metrics["stt"] = 0
+        latency_metrics["llm"] = 0
+        latency_metrics["tts"] = 0
+        latency_metrics["total"] = 0
     
     @transport.event_handler("on_client_disconnected")
     async def on_client_disconnected(transport, client):
