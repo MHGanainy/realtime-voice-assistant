@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import protobuf from 'protobufjs';
 import './App.css';
+import AudioDebugToolkit from './AudioDebugToolkit';
 
 export default function App() {
   // ---------------------------------------------------------------------------
@@ -25,6 +26,7 @@ export default function App() {
   const [llmModel, setLlmModel] = useState('gpt-3.5-turbo');
   const [ttsService, setTtsService] = useState('elevenlabs');
   const [notification, setNotification] = useState('');
+  const [showDebugToolkit, setShowDebugToolkit] = useState(false);
 
   // ---------------------------------------------------------------------------
   // Refs ----------------------------------------------------------------------
@@ -124,7 +126,7 @@ export default function App() {
   }, [conversationHistory]);
 
   // ---------------------------------------------------------------------------
-  // Effect: clear notification after 5 s --------------------------------------
+  // Effect: clear notification after 5 s --------------------------------------
   // ---------------------------------------------------------------------------
   useEffect(() => {
     if (!notification) return;
@@ -164,7 +166,7 @@ export default function App() {
     if (message.startsWith('Assistant:')) audioChunkCountRef.current = 0;
 
     setLogs((p) => {
-      // deduplicate identical messages within 100 ms
+      // deduplicate identical messages within 100 ms
       if (p.length) {
         const last = p[p.length - 1];
         if (last.message === message && last.level === level) {
@@ -500,7 +502,21 @@ export default function App() {
       {/* HEADER -------------------------------------------------------------- */}
       <header className="app-header">
         <h1>Voice Assistant Dev Testing</h1>
-        <div style={{ display: 'flex', gap: '1rem' }}>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <button
+            onClick={() => setShowDebugToolkit(true)}
+            style={{
+              background: '#4a9eff',
+              border: 'none',
+              color: '#fff',
+              padding: '0.5rem 1rem',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '0.875rem',
+            }}
+          >
+            🛠️ Debug Toolkit
+          </button>
           <div className={`connection-status ${isDataConnected ? 'connected' : 'disconnected'}`}>
             <span className="status-dot" /> Backend {isDataConnected ? 'Connected' : 'Disconnected'}
           </div>
@@ -698,6 +714,11 @@ export default function App() {
           </section>
         </div>
       </div>
+
+      {/* Debug Toolkit Modal */}
+      {showDebugToolkit && (
+        <AudioDebugToolkit onClose={() => setShowDebugToolkit(false)} />
+      )}
     </div>
   );
 }
