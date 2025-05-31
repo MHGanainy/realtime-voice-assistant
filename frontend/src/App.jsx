@@ -1,442 +1,329 @@
-import { useEffect, useRef, useState } from "react";
-import "./App.css";
+import { useState, useRef, useEffect } from 'react';
+import protobuf from 'protobufjs';
+import './App.css';
 
-/**
- * Real‑time voice‑assistant development testing interface with latency tracking
- */
 export default function App() {
-  const WS_URL = import.meta.env.VITE_WS_URL || "ws://localhost:8000/ws";
-
-  const [userTranscript, setUserTranscript] = useState("");
-  const [assistantReply, setAssistantReply] = useState("");
+  const [isConnected, setIsConnected] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [systemPrompt, setSystemPrompt] = useState(
-    "You are a helpful assistant. Respond concisely and clearly."
-  );
-  const [isPromptLocked, setIsPromptLocked] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState("disconnected");
-  const [conversationHistory, setConversationHistory] = useState([]);
-  const [logs, setLogs] = useState([]);
+  const [transcript, setTranscript] = useState('');
+  const [botReply, setBotReply] = useState('');
+  const [status, setStatus] = useState('Loading protobuf...');
   
-  // Latency tracking states
-  const [latencyMetrics, setLatencyMetrics] = useState({
-    stt: null,
-    llm: null,
-    tts: null,
-    total: null
-  });
-  const [latencyHistory, setLatencyHistory] = useState([]);
-
-  const socketRef = useRef(null);
-  const recorderRef = useRef(null);
-  const sendAudioRef = useRef(true);
-  const expectNewAudioRef = useRef(false);
-
-  /* ---- media‑pipeline plumbing ------------------------------------ */
-  const mediaSrcRef = useRef(null);
-  const sourceBufRef = useRef(null);
-  const pendingChunksRef = useRef([]);
-  const audioRef = useRef(null);
-
-  /* ---- logging helper --------------------------------------------- */
-  const addLog = (message, type = "info") => {
-    const timestamp = new Date().toLocaleTimeString();
-    setLogs(prev => [...prev, { timestamp, message, type }]);
-  };
+  const wsRef = useRef(null);
+  const mediaStreamRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const scriptProcessorRef = useRef(null);
+  const sourceRef = useRef(null);
+  const frameTypeRef = useRef(null);
+  const playTimeRef = useRef(0);
+  const lastMessageTimeRef = useRef(0);
   
-  /* ---- Latency Display Component ---------------------------------- */
-  const LatencyDisplay = ({ metrics }) => (
-    <div className="latency-display">
-      <h3>Current Latencies</h3>
-      <div className="latency-grid">
-        <div className="latency-item">
-          <span className="latency-label">STT</span>
-          <span className="latency-value">
-            {metrics.stt !== null ? `${metrics.stt}ms` : '--'}
-          </span>
-        </div>
-        <div className="latency-item">
-          <span className="latency-label">LLM</span>
-          <span className="latency-value">
-            {metrics.llm !== null ? `${metrics.llm}ms` : '--'}
-          </span>
-        </div>
-        <div className="latency-item">
-          <span className="latency-label">TTS</span>
-          <span className="latency-value">
-            {metrics.tts !== null ? `${metrics.tts}ms` : '--'}
-          </span>
-        </div>
-        <div className="latency-item total">
-          <span className="latency-label">Total</span>
-          <span className="latency-value">
-            {metrics.total !== null ? `${metrics.total}ms` : '--'}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-
-  /* ---- helpers ---------------------------------------------------- */
-  function teardownMediaSource() {
-    audioRef.current?.pause();
-    if (audioRef.current?.src?.startsWith("blob:")) {
-      URL.revokeObjectURL(audioRef.current.src);
-    }
-    mediaSrcRef.current = null;
-    sourceBufRef.current = null;
-    pendingChunksRef.current = [];
-    audioRef.current = null;
-  }
-
-  function initMediaSource() {
-    if (mediaSrcRef.current) return;
-
-    mediaSrcRef.current = new MediaSource();
-    const url = URL.createObjectURL(mediaSrcRef.current);
-    audioRef.current = new Audio(url);
-
-    audioRef.current.play().catch(() => {});
-
-    mediaSrcRef.current.addEventListener("sourceopen", () => {
-      sourceBufRef.current =
-        mediaSrcRef.current.addSourceBuffer("audio/mpeg");
-      sourceBufRef.current.mode = "sequence";
-
-      sourceBufRef.current.addEventListener("updateend", flushPending);
-      flushPending();
-    });
-  }
-
-  function flushPending() {
-    const sb = sourceBufRef.current;
-    if (!sb || sb.updating) return;
-
-    const chunk = pendingChunksRef.current.shift();
-    if (!chunk) return;
-
-    sb.appendBuffer(chunk);
-
-    const kick = () => {
-      if (audioRef.current?.paused) {
-        audioRef.current.play().catch(() => {});
+  // Constants
+  const SAMPLE_RATE = 16000;
+  const NUM_CHANNELS = 1;
+  const PLAY_TIME_RESET_THRESHOLD_MS = 1.0;
+  
+  // Load protobuf schema
+  useEffect(() => {
+    // Define the proto schema inline
+    const protoDefinition = `
+      syntax = "proto3";
+      package pipecat;
+      
+      message TextFrame {
+        uint64 id = 1;
+        string name = 2;
+        string text = 3;
       }
-      sb.removeEventListener("updateend", kick);
-    };
-    sb.addEventListener("updateend", kick);
-  }
-
-  const sendCommand = (command, data = {}) => {
-    if (socketRef.current?.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify({ command, ...data }));
-      addLog(`Sent command: ${command}`, "command");
-    }
-  };
-
-  const startRecording = async () => {
-    setConnectionStatus("connecting");
-    addLog("Connecting to WebSocket...", "info");
-    const socket = new WebSocket(WS_URL);
-    socket.binaryType = "arraybuffer";
-    socketRef.current = socket;
-
-    socket.onopen = async () => {
-      setConnectionStatus("connected");
-      addLog("WebSocket connected", "success");
-      sendCommand("set_prompt", { prompt: systemPrompt });
-      setIsPromptLocked(true);
-
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const recorder = new MediaRecorder(stream, {
-          mimeType: "audio/webm;codecs=opus",
-        });
-        recorderRef.current = recorder;
-        sendAudioRef.current = true;
-
-        recorder.ondataavailable = async (e) => {
-          if (
-            !e.data.size ||
-            socket.readyState !== WebSocket.OPEN ||
-            !sendAudioRef.current
-          )
-            return;
-          const buf = await e.data.arrayBuffer();
-          socket.send(buf);
-        };
-
-        recorder.start(250);
-        setIsRecording(true);
-        addLog("Recording started", "success");
-      } catch (err) {
-        console.error("Mic access denied:", err);
-        addLog(`Mic access error: ${err.message}`, "error");
-        socket.close();
-        setConnectionStatus("error");
+      
+      message AudioRawFrame {
+        uint64 id = 1;
+        string name = 2;
+        bytes audio = 3;
+        uint32 sample_rate = 4;
+        uint32 num_channels = 5;
+        optional uint64 pts = 6;
       }
-    };
-
-    socket.onmessage = (e) => {
-      if (typeof e.data === "string") {
-        const msg = JSON.parse(e.data);
-
-        if (msg.type === "interaction_complete") {
-          setUserTranscript(msg.utterance);
-          setAssistantReply(msg.response);
-          setConversationHistory(prev => [
-            ...prev,
-            { role: "user", content: msg.utterance, timestamp: new Date() },
-            { role: "assistant", content: msg.response, timestamp: new Date() }
-          ]);
-          addLog("Interaction complete", "success");
-          return;
+      
+      message TranscriptionFrame {
+        uint64 id = 1;
+        string name = 2;
+        string text = 3;
+        string user_id = 4;
+        string timestamp = 5;
+      }
+      
+      message Frame {
+        oneof frame {
+          TextFrame text = 1;
+          AudioRawFrame audio = 2;
+          TranscriptionFrame transcription = 3;
         }
+      }
+    `;
+    
+    try {
+      const root = protobuf.parse(protoDefinition).root;
+      frameTypeRef.current = root.lookupType('pipecat.Frame');
+      setStatus('Ready! Click "Start Recording" to begin.');
+    } catch (err) {
+      console.error('Failed to load protobuf:', err);
+      setStatus('Error loading protobuf: ' + err.message);
+    }
+  }, []);
+  
+  const convertFloat32ToS16PCM = (float32Array) => {
+    const int16Array = new Int16Array(float32Array.length);
+    for (let i = 0; i < float32Array.length; i++) {
+      const clampedValue = Math.max(-1, Math.min(1, float32Array[i]));
+      int16Array[i] = clampedValue < 0 ? clampedValue * 32768 : clampedValue * 32767;
+    }
+    return int16Array;
+  };
+  
+  const enqueueAudioFromProto = (arrayBuffer) => {
+    if (!audioContextRef.current || !frameTypeRef.current) return;
+    
+    try {
+      const parsedFrame = frameTypeRef.current.decode(new Uint8Array(arrayBuffer));
+      
+      if (parsedFrame?.audio) {
+        // Reset play time if it's been a while
+        const currentTime = audioContextRef.current.currentTime;
+        const diffTime = currentTime - lastMessageTimeRef.current;
+        if (playTimeRef.current === 0 || diffTime > PLAY_TIME_RESET_THRESHOLD_MS) {
+          playTimeRef.current = currentTime;
+        }
+        lastMessageTimeRef.current = currentTime;
         
-        if (msg.type === "latency_metrics") {
-          const metrics = {
-            stt: msg.stt_ms,
-            llm: msg.llm_ms,
-            tts: msg.tts_ms,
-            total: msg.total_ms,
-            timestamp: new Date(),
-            utterance: msg.utterance
+        // Convert audio data
+        const audioVector = Array.from(parsedFrame.audio.audio);
+        const audioArray = new Uint8Array(audioVector);
+        
+        // Decode and play
+        audioContextRef.current.decodeAudioData(audioArray.buffer, (buffer) => {
+          const source = audioContextRef.current.createBufferSource();
+          source.buffer = buffer;
+          source.start(playTimeRef.current);
+          source.connect(audioContextRef.current.destination);
+          playTimeRef.current += buffer.duration;
+        }, (error) => {
+          console.error('Error decoding audio:', error);
+        });
+      } else if (parsedFrame?.transcription) {
+        setTranscript(parsedFrame.transcription.text);
+        setStatus('Processing...');
+      } else if (parsedFrame?.text) {
+        setBotReply(parsedFrame.text.text);
+        setStatus('Assistant speaking...');
+      }
+    } catch (err) {
+      console.error('Error processing frame:', err);
+    }
+  };
+  
+  const startRecording = async () => {
+    if (!frameTypeRef.current) {
+      setStatus('Protobuf not loaded yet');
+      return;
+    }
+    
+    try {
+      // Initialize audio context
+      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({
+        latencyHint: 'interactive',
+        sampleRate: SAMPLE_RATE
+      });
+      
+      // Clear previous state
+      setTranscript('');
+      setBotReply('');
+      playTimeRef.current = 0;
+      lastMessageTimeRef.current = 0;
+      
+      // Connect WebSocket
+      const ws = new WebSocket('ws://localhost:8765');
+      ws.binaryType = 'arraybuffer';
+      wsRef.current = ws;
+      
+      setStatus('Connecting...');
+      
+      ws.onopen = async () => {
+        console.log('WebSocket connected');
+        setIsConnected(true);
+        setStatus('Getting microphone...');
+        
+        try {
+          // Get microphone stream
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              sampleRate: SAMPLE_RATE,
+              channelCount: NUM_CHANNELS,
+              autoGainControl: true,
+              echoCancellation: true,
+              noiseSuppression: true,
+            }
+          });
+          
+          mediaStreamRef.current = stream;
+          
+          // Setup audio processing
+          scriptProcessorRef.current = audioContextRef.current.createScriptProcessor(512, 1, 1);
+          sourceRef.current = audioContextRef.current.createMediaStreamSource(stream);
+          sourceRef.current.connect(scriptProcessorRef.current);
+          scriptProcessorRef.current.connect(audioContextRef.current.destination);
+          
+          scriptProcessorRef.current.onaudioprocess = (event) => {
+            if (!ws || ws.readyState !== WebSocket.OPEN || !frameTypeRef.current) return;
+            
+            const audioData = event.inputBuffer.getChannelData(0);
+            const pcmS16Array = convertFloat32ToS16PCM(audioData);
+            const pcmByteArray = new Uint8Array(pcmS16Array.buffer);
+            
+            // Create the frame
+            const frame = {
+              audio: {
+                audio: pcmByteArray,
+                sampleRate: SAMPLE_RATE,
+                numChannels: NUM_CHANNELS
+              }
+            };
+            
+            // Encode and send
+            const message = frameTypeRef.current.create(frame);
+            const buffer = frameTypeRef.current.encode(message).finish();
+            ws.send(buffer);
           };
           
-          setLatencyMetrics(metrics);
-          setLatencyHistory(prev => [...prev.slice(-19), metrics]); // Keep last 20
+          setIsRecording(true);
+          setStatus('Listening... Speak clearly into your microphone');
           
-          addLog(
-            `Latencies - STT: ${msg.stt_ms}ms, LLM: ${msg.llm_ms}ms, TTS: ${msg.tts_ms}ms, Total: ${msg.total_ms}ms`,
-            "metrics"
-          );
+        } catch (err) {
+          console.error('Microphone error:', err);
+          setStatus('Microphone access denied');
+          ws.close();
         }
-
-        if (msg.command === "pause") {
-          sendAudioRef.current = false;
-          expectNewAudioRef.current = true;
-          recorderRef.current?.pause();
-          addLog("Audio paused by backend", "info");
-          return;
-        }
-        if (msg.command === "resume") {
-          sendAudioRef.current = true;
-          recorderRef.current?.resume?.();
-          addLog("Audio resumed by backend", "info");
-          return;
-        }
-
-        if (msg.transcript) {
-          setUserTranscript(msg.transcript);
-          if (!msg.final) {
-            addLog(`Partial transcript: "${msg.transcript}"`, "transcript");
-          }
-        }
-
-        if (msg.type === "command_response") {
-          addLog(`Command response: ${JSON.stringify(msg)}`, "response");
-        }
-      } else {
-        if (expectNewAudioRef.current) {
-          teardownMediaSource();
-          expectNewAudioRef.current = false;
-          addLog("Starting new audio stream", "info");
-        }
-
-        initMediaSource();
-        pendingChunksRef.current.push(new Uint8Array(e.data));
-        flushPending();
+      };
+      
+      ws.onmessage = (event) => {
+        enqueueAudioFromProto(event.data);
+      };
+      
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        setStatus('Connection error');
+      };
+      
+      ws.onclose = () => {
+        console.log('WebSocket closed');
+        stopRecording();
+        setIsConnected(false);
+        setStatus('Disconnected');
+      };
+      
+    } catch (error) {
+      console.error('Failed to start recording:', error);
+      setStatus('Failed to start: ' + error.message);
+    }
+  };
+  
+  const stopRecording = () => {
+    console.log('Stopping recording...');
+    
+    // Stop audio processing
+    if (scriptProcessorRef.current) {
+      scriptProcessorRef.current.disconnect();
+      scriptProcessorRef.current = null;
+    }
+    
+    if (sourceRef.current) {
+      sourceRef.current.disconnect();
+      sourceRef.current = null;
+    }
+    
+    // Stop media stream
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
+    }
+    
+    // Close WebSocket
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.close();
+    }
+    wsRef.current = null;
+    
+    setIsRecording(false);
+  };
+  
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopRecording();
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close();
       }
     };
-
-    socket.onerror = (err) => {
-      console.error("WebSocket error", err);
-      addLog("WebSocket error", "error");
-      setConnectionStatus("error");
-    };
-    
-    socket.onclose = () => {
-      addLog("WebSocket disconnected", "info");
-      stopRecording();
-      setIsPromptLocked(false);
-      setConnectionStatus("disconnected");
-    };
-  };
-
-  const stopRecording = () => {
-    recorderRef.current?.stop();
-    socketRef.current?.close();
-    setIsRecording(false);
-    setUserTranscript("");
-    setAssistantReply("");
-    teardownMediaSource();
-    setIsPromptLocked(false);
-    setConnectionStatus("disconnected");
-    addLog("Recording stopped", "info");
-  };
-
-  const handlePromptChange = (e) => {
-    setSystemPrompt(e.target.value);
-  };
-
-  const handleUpdatePrompt = () => {
-    if (isRecording) {
-      sendCommand("clear_history");
-      sendCommand("set_prompt", { prompt: systemPrompt });
-      setUserTranscript("");
-      setAssistantReply("");
-      setConversationHistory([]);
-      addLog("Prompt updated and history cleared", "success");
-    }
-  };
-
-  const clearLogs = () => {
-    setLogs([]);
-    addLog("Logs cleared", "info");
-  };
-
-  const clearHistory = () => {
-    setConversationHistory([]);
-    if (isRecording) {
-      sendCommand("clear_history");
-    }
-    addLog("History cleared", "info");
-  };
-
-  useEffect(() => () => stopRecording(), []);
-
-  /* ---- UI --------------------------------------------------------- */
+  }, []);
+  
   return (
-    <div className="app-container">
+    <div className="app">
       <header className="app-header">
-        <h1 className="app-title">Voice Assistant Dev Testing</h1>
-        <div className={`connection-status ${connectionStatus}`}>
-          <span className="status-dot"></span>
-          <span className="status-text">
-            {connectionStatus === "connected" ? "Connected" : 
-             connectionStatus === "connecting" ? "Connecting..." : 
-             connectionStatus === "error" ? "Error" : "Disconnected"}
-          </span>
+        <h1>Voice Assistant (Pipecat)</h1>
+        <div className={`status ${isConnected ? 'connected' : 'disconnected'}`}>
+          {status}
         </div>
       </header>
-
-      <div className="app-layout">
-        {/* Left Panel - Controls & Current Interaction */}
-        <div className="left-panel">
-          {/* System Prompt Section */}
-          <section className="prompt-section">
-            <div className="section-header">
-              <h2>System Prompt</h2>
-              {isPromptLocked && (
-                <span className="lock-indicator">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
-                  </svg>
-                  Locked
-                </span>
-              )}
-            </div>
-            <textarea
-              value={systemPrompt}
-              onChange={handlePromptChange}
-              disabled={isPromptLocked && !isRecording}
-              placeholder="Enter system prompt..."
-              className={`prompt-input ${isPromptLocked ? 'locked' : ''}`}
-              rows="4"
-            />
-            {isRecording && (
-              <button onClick={handleUpdatePrompt} className="update-button">
-                Update & Clear History
-              </button>
-            )}
-          </section>
-
-          {/* Control Section */}
-          <div className="control-section">
-            <button
-              onClick={isRecording ? stopRecording : startRecording}
-              className={`record-button ${isRecording ? 'recording' : ''}`}
-            >
-              <div className="button-content">
-                <svg className="mic-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      
+      <main className="app-main">
+        <div className="control-section">
+          <button
+            className={`record-button ${isRecording ? 'recording' : ''}`}
+            onClick={isRecording ? stopRecording : startRecording}
+            disabled={!frameTypeRef.current}
+          >
+            {isRecording ? (
+              <>
+                <span className="recording-dot"></span>
+                Stop Recording
+              </>
+            ) : (
+              <>
+                <svg className="mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <rect x="9" y="3" width="6" height="11" rx="3"/>
                   <path d="M5 12v1a7 7 0 0014 0v-1M12 18v3"/>
                 </svg>
-                <span>{isRecording ? 'Stop Recording' : 'Start Recording'}</span>
-                {isRecording && <span className="recording-indicator"></span>}
-              </div>
-            </button>
+                Start Recording
+              </>
+            )}
+          </button>
+        </div>
+        
+        <div className="conversation-section">
+          <div className="message user-message">
+            <div className="message-label">You</div>
+            <div className="message-content">
+              {transcript || <span className="placeholder">Speak into your microphone...</span>}
+            </div>
           </div>
           
-          {/* Latency Metrics Section */}
-          <section className="metrics-section">
-            <LatencyDisplay metrics={latencyMetrics} />
-          </section>
-
-          {/* Current Interaction */}
-          <section className="current-interaction">
-            <h3>Current Interaction</h3>
-            <div className="interaction-messages">
-              <div className="message user-message">
-                <div className="message-label">USER</div>
-                <div className="message-content">
-                  {userTranscript || <span className="placeholder">Waiting for speech...</span>}
-                </div>
-              </div>
-              <div className="message assistant-message">
-                <div className="message-label">ASSISTANT</div>
-                <div className="message-content">
-                  {assistantReply || <span className="placeholder">Waiting for response...</span>}
-                </div>
-              </div>
+          <div className="message assistant-message">
+            <div className="message-label">Assistant</div>
+            <div className="message-content">
+              {botReply || <span className="placeholder">Waiting for response...</span>}
             </div>
-          </section>
+          </div>
         </div>
-
-        {/* Middle Panel - Conversation History */}
-        <div className="middle-panel">
-          <section className="history-section">
-            <div className="section-header">
-              <h2>Conversation History</h2>
-              <button onClick={clearHistory} className="clear-button">Clear</button>
-            </div>
-            <div className="history-container">
-              {conversationHistory.length === 0 ? (
-                <div className="empty-state">No conversation history yet</div>
-              ) : (
-                conversationHistory.map((msg, idx) => (
-                  <div key={idx} className={`history-message ${msg.role}`}>
-                    <div className="history-header">
-                      <span className="history-label">{msg.role.toUpperCase()}</span>
-                      <span className="history-time">
-                        {msg.timestamp.toLocaleTimeString()}
-                      </span>
-                    </div>
-                    <div className="history-content">{msg.content}</div>
-                  </div>
-                ))
-              )}
-            </div>
-          </section>
+        
+        <div style={{marginTop: '2rem', padding: '1rem', background: '#1a1a1a', borderRadius: '8px', fontSize: '0.875rem'}}>
+          <div style={{marginBottom: '0.5rem'}}>
+            <strong>Debug Info:</strong>
+          </div>
+          <div>Recording: {isRecording ? 'Yes' : 'No'}</div>
+          <div>Connected: {isConnected ? 'Yes' : 'No'}</div>
+          <div>WebSocket URL: ws://localhost:8765</div>
         </div>
-
-        {/* Right Panel - Debug Logs */}
-        <div className="right-panel">
-          <section className="logs-section">
-            <div className="section-header">
-              <h2>Debug Logs</h2>
-              <button onClick={clearLogs} className="clear-button">Clear</button>
-            </div>
-            <div className="logs-container">
-              {logs.map((log, idx) => (
-                <div key={idx} className={`log-entry ${log.type}`}>
-                  <span className="log-time">{log.timestamp}</span>
-                  <span className="log-message">{log.message}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-        </div>
-      </div>
+      </main>
     </div>
   );
 }
