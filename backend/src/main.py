@@ -35,9 +35,7 @@ from pipecat.frames.frames import (
     TextFrame,
     TranscriptionFrame,
     InterimTranscriptionFrame,
-    AudioRawFrame,
-    LLMFullResponseStartFrame,
-    LLMFullResponseEndFrame
+    AudioRawFrame
 )
 from pipecat.processors.frame_processor import FrameProcessor, FrameDirection
 from pipecat.serializers.protobuf import ProtobufFrameSerializer
@@ -152,53 +150,60 @@ class AssistantResponseTracker(FrameProcessor):
     
     def __init__(self):
         super().__init__()
-        self.current_response = ""
-        self.response_started = False
+        self.current_response = []
+        self.response_timer = None
+        self.MIN_SILENCE_DURATION = 0.5  # 500ms of silence to consider response complete
         
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
         
-        # Check if this is a TextFrame going to TTS
+        # Collect text frames
         if isinstance(frame, TextFrame):
-            # Accumulate the response
-            self.current_response += frame.text
+            # Cancel any existing timer
+            if self.response_timer:
+                self.response_timer.cancel()
             
-            if not self.response_started:
-                self.response_started = True
-                logger.info(f"🤖 Assistant starting response...")
+            # Add text to current response
+            self.current_response.append(frame.text)
             
-            # Send partial update
+            # Send partial update with all accumulated text
+            current_text = ''.join(self.current_response)
+            logger.debug(f"Assistant partial: {current_text}")
+            
             await self._broadcast_to_frontend({
-                "type": "assistant_reply",
-                "text": self.current_response,
+                "type": "assistant_reply", 
+                "text": current_text,
                 "final": False
             })
-        
-        # Check for LLMFullResponseEndFrame or when TTS starts
-        elif hasattr(frame, '__class__') and 'End' in frame.__class__.__name__ and self.response_started:
-            # Send final response
-            if self.current_response:
-                logger.info(f"🤖 Assistant complete: {self.current_response}")
-                await self._broadcast_to_frontend({
-                    "type": "assistant_reply",
-                    "text": self.current_response,
-                    "final": True
-                })
-                self.current_response = ""
-                self.response_started = False
-        
-        # Alternative: Mark as final when audio starts playing
-        elif isinstance(frame, AudioRawFrame) and self.response_started and self.current_response:
-            logger.info(f"🤖 Assistant complete: {self.current_response}")
-            await self._broadcast_to_frontend({
-                "type": "assistant_reply",
-                "text": self.current_response,
-                "final": True
-            })
-            self.current_response = ""
-            self.response_started = False
+            
+            # Set timer to finalize response after silence
+            self.response_timer = asyncio.create_task(self._finalize_response())
         
         await self.push_frame(frame, direction)
+    
+    async def _finalize_response(self):
+        """Finalize response after a period of silence"""
+        try:
+            # Wait for silence duration
+            await asyncio.sleep(self.MIN_SILENCE_DURATION)
+            
+            # If we get here, no new text came in during the wait
+            if self.current_response:
+                final_text = ''.join(self.current_response)
+                logger.info(f"🤖 Assistant complete: {final_text}")
+                
+                await self._broadcast_to_frontend({
+                    "type": "assistant_reply",
+                    "text": final_text,
+                    "final": True
+                })
+                
+                # Clear the response buffer
+                self.current_response = []
+                
+        except asyncio.CancelledError:
+            # Timer was cancelled because new text arrived
+            pass
     
     async def _broadcast_to_frontend(self, message: dict):
         """Send message to all connected frontend WebSocket clients"""
