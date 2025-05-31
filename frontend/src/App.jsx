@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
 import protobuf from 'protobufjs';
-import './App.css';
 
 export default function App() {
   const [isConnected, setIsConnected] = useState(false);
@@ -10,6 +9,7 @@ export default function App() {
   const [status, setStatus] = useState('Loading protobuf...');
   
   const wsRef = useRef(null);
+  const dataWsRef = useRef(null); // New: WebSocket for data/transcriptions
   const mediaStreamRef = useRef(null);
   const audioContextRef = useRef(null);
   const scriptProcessorRef = useRef(null);
@@ -25,7 +25,6 @@ export default function App() {
   
   // Load protobuf schema
   useEffect(() => {
-    // Define the proto schema inline
     const protoDefinition = `
       syntax = "proto3";
       package pipecat;
@@ -110,16 +109,55 @@ export default function App() {
         }, (error) => {
           console.error('Error decoding audio:', error);
         });
-      } else if (parsedFrame?.transcription) {
-        setTranscript(parsedFrame.transcription.text);
-        setStatus('Processing...');
-      } else if (parsedFrame?.text) {
-        setBotReply(parsedFrame.text.text);
-        setStatus('Assistant speaking...');
       }
     } catch (err) {
       console.error('Error processing frame:', err);
     }
+  };
+  
+  const connectDataWebSocket = () => {
+    // Connect to the data WebSocket for transcriptions and responses
+    const dataWs = new WebSocket('ws://localhost:8766');
+    dataWsRef.current = dataWs;
+    
+    dataWs.onopen = () => {
+      console.log('Data WebSocket connected');
+    };
+    
+    dataWs.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === 'connection') {
+          console.log('Frontend connection confirmed:', data.status);
+        } else if (data.type === 'transcription') {
+          console.log('Transcription:', data.text, data.final ? '(final)' : '(interim)');
+          if (data.final) {
+            setTranscript(data.text);
+            setStatus('Processing...');
+          } else {
+            setTranscript(data.text + '...');
+          }
+        } else if (data.type === 'assistant_reply') {
+          console.log('Assistant:', data.text, data.final ? '(final)' : '(partial)');
+          setBotReply(data.text);
+          setStatus(data.final ? 'Assistant replied' : 'Assistant speaking...');
+        }
+      } catch (err) {
+        console.error('Error parsing data message:', err);
+      }
+    };
+    
+    dataWs.onerror = (error) => {
+      console.error('Data WebSocket error:', error);
+    };
+    
+    dataWs.onclose = () => {
+      console.log('Data WebSocket closed');
+      dataWsRef.current = null;
+    };
+    
+    return dataWs;
   };
   
   const startRecording = async () => {
@@ -141,7 +179,10 @@ export default function App() {
       playTimeRef.current = 0;
       lastMessageTimeRef.current = 0;
       
-      // Connect WebSocket
+      // Connect data WebSocket first
+      connectDataWebSocket();
+      
+      // Connect audio WebSocket
       const ws = new WebSocket('ws://localhost:8765');
       ws.binaryType = 'arraybuffer';
       wsRef.current = ws;
@@ -149,7 +190,7 @@ export default function App() {
       setStatus('Connecting...');
       
       ws.onopen = async () => {
-        console.log('WebSocket connected');
+        console.log('Audio WebSocket connected');
         setIsConnected(true);
         setStatus('Getting microphone...');
         
@@ -210,12 +251,12 @@ export default function App() {
       };
       
       ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        console.error('Audio WebSocket error:', error);
         setStatus('Connection error');
       };
       
       ws.onclose = () => {
-        console.log('WebSocket closed');
+        console.log('Audio WebSocket closed');
         stopRecording();
         setIsConnected(false);
         setStatus('Disconnected');
@@ -247,11 +288,16 @@ export default function App() {
       mediaStreamRef.current = null;
     }
     
-    // Close WebSocket
+    // Close both WebSockets
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.close();
     }
     wsRef.current = null;
+    
+    if (dataWsRef.current && dataWsRef.current.readyState === WebSocket.OPEN) {
+      dataWsRef.current.close();
+    }
+    dataWsRef.current = null;
     
     setIsRecording(false);
   };
@@ -267,29 +313,53 @@ export default function App() {
   }, []);
   
   return (
-    <div className="app">
-      <header className="app-header">
-        <h1>Voice Assistant (Pipecat)</h1>
-        <div className={`status ${isConnected ? 'connected' : 'disconnected'}`}>
+    <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', maxWidth: '800px', margin: '0 auto', padding: '2rem' }}>
+      <header style={{ textAlign: 'center', marginBottom: '2rem' }}>
+        <h1 style={{ fontSize: '2rem', marginBottom: '1rem' }}>Voice Assistant (Pipecat)</h1>
+        <div style={{
+          padding: '0.5rem 1rem',
+          borderRadius: '4px',
+          backgroundColor: isConnected ? '#065f46' : '#7f1d1d',
+          color: 'white',
+          display: 'inline-block'
+        }}>
           {status}
         </div>
       </header>
       
-      <main className="app-main">
-        <div className="control-section">
+      <main>
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
           <button
-            className={`record-button ${isRecording ? 'recording' : ''}`}
             onClick={isRecording ? stopRecording : startRecording}
             disabled={!frameTypeRef.current}
+            style={{
+              backgroundColor: isRecording ? '#dc2626' : '#2563eb',
+              color: 'white',
+              border: 'none',
+              padding: '1rem 2rem',
+              borderRadius: '8px',
+              fontSize: '1.125rem',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              transition: 'all 0.2s'
+            }}
           >
             {isRecording ? (
               <>
-                <span className="recording-dot"></span>
+                <span style={{
+                  width: '8px',
+                  height: '8px',
+                  backgroundColor: 'white',
+                  borderRadius: '50%',
+                  animation: 'pulse 1.5s infinite'
+                }}></span>
                 Stop Recording
               </>
             ) : (
               <>
-                <svg className="mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <rect x="9" y="3" width="6" height="11" rx="3"/>
                   <path d="M5 12v1a7 7 0 0014 0v-1M12 18v3"/>
                 </svg>
@@ -299,31 +369,55 @@ export default function App() {
           </button>
         </div>
         
-        <div className="conversation-section">
-          <div className="message user-message">
-            <div className="message-label">You</div>
-            <div className="message-content">
-              {transcript || <span className="placeholder">Speak into your microphone...</span>}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{
+            backgroundColor: '#f3f4f6',
+            padding: '1rem',
+            borderRadius: '8px',
+            borderLeft: '4px solid #2563eb'
+          }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '0.5rem', color: '#1f2937' }}>You</div>
+            <div style={{ color: '#4b5563' }}>
+              {transcript || <span style={{ fontStyle: 'italic' }}>Speak into your microphone...</span>}
             </div>
           </div>
           
-          <div className="message assistant-message">
-            <div className="message-label">Assistant</div>
-            <div className="message-content">
-              {botReply || <span className="placeholder">Waiting for response...</span>}
+          <div style={{
+            backgroundColor: '#f3f4f6',
+            padding: '1rem',
+            borderRadius: '8px',
+            borderLeft: '4px solid #10b981'
+          }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '0.5rem', color: '#1f2937' }}>Assistant</div>
+            <div style={{ color: '#4b5563' }}>
+              {botReply || <span style={{ fontStyle: 'italic' }}>Waiting for response...</span>}
             </div>
           </div>
         </div>
         
-        <div style={{marginTop: '2rem', padding: '1rem', background: '#1a1a1a', borderRadius: '8px', fontSize: '0.875rem'}}>
-          <div style={{marginBottom: '0.5rem'}}>
-            <strong>Debug Info:</strong>
-          </div>
+        <div style={{
+          marginTop: '2rem',
+          padding: '1rem',
+          backgroundColor: '#1f2937',
+          color: '#d1d5db',
+          borderRadius: '8px',
+          fontSize: '0.875rem'
+        }}>
+          <div style={{ marginBottom: '0.5rem', fontWeight: 'bold' }}>Debug Info:</div>
           <div>Recording: {isRecording ? 'Yes' : 'No'}</div>
           <div>Connected: {isConnected ? 'Yes' : 'No'}</div>
-          <div>WebSocket URL: ws://localhost:8765</div>
+          <div>Audio WebSocket: ws://localhost:8765</div>
+          <div>Data WebSocket: ws://localhost:8766</div>
         </div>
       </main>
+      
+      <style>{`
+        @keyframes pulse {
+          0% { opacity: 1; }
+          50% { opacity: 0.5; }
+          100% { opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 }
