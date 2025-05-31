@@ -10,7 +10,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 from loguru import logger
 import websockets
-from typing import Set, Optional
+from typing import Set, Optional, List, Dict
+from datetime import datetime
 
 # Load environment variables
 env_path = Path(__file__).parent.parent / '.env'
@@ -25,6 +26,7 @@ from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
+from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
 from pipecat.processors.aggregators.llm_response import (
     LLMAssistantResponseAggregator,
     LLMUserResponseAggregator
@@ -35,7 +37,8 @@ from pipecat.frames.frames import (
     TextFrame,
     TranscriptionFrame,
     InterimTranscriptionFrame,
-    AudioRawFrame
+    AudioRawFrame,
+    EndFrame
 )
 from pipecat.processors.frame_processor import FrameProcessor, FrameDirection
 from pipecat.serializers.protobuf import ProtobufFrameSerializer
@@ -58,74 +61,68 @@ if not all([OPENAI_API_KEY, ELEVEN_API_KEY]):
 # Global set to track frontend WebSocket connections
 frontend_clients: Set[websockets.WebSocketServerProtocol] = set()
 
+# Global conversation history
+conversation_history: List[Dict[str, str]] = []
 
-class FrameLogger(FrameProcessor):
-    """Custom frame processor for logging transcriptions and sending to frontend"""
+# Global system prompt
+current_system_prompt = "You are a helpful voice assistant. Keep your responses concise and conversational. Your output will be converted to audio so don't include special characters in your answers."
+
+# Global pipeline components
+pipeline_task = None
+context = None
+context_aggregator = None
+
+
+class TranscriptionCapture(FrameProcessor):
+    """Capture user transcriptions immediately after STT"""
     
     def __init__(self):
         super().__init__()
-        self.assistant_reply = ""
-        self.collecting_reply = False
+        self.current_transcription = ""
         
     async def process_frame(self, frame: Frame, direction: FrameDirection):
-        """Process and log frames"""
-        # IMPORTANT: Always call parent's process_frame first
         await super().process_frame(frame, direction)
         
+        global conversation_history
+        
         try:
-            # Log user transcriptions
+            # Capture final transcriptions
             if isinstance(frame, TranscriptionFrame):
-                logger.info(f"🎤 User: {frame.text}")
-                # Send transcription to all frontend clients
+                logger.info(f"🎤 User said: {frame.text}")
+                self.current_transcription = frame.text
+                
+                # Send to frontend
                 await self._broadcast_to_frontend({
                     "type": "transcription",
                     "text": frame.text,
                     "final": True
                 })
-            
-            # Log interim transcriptions
+                
+                # Add to conversation history
+                conversation_history.append({
+                    "role": "user",
+                    "content": frame.text,
+                    "timestamp": datetime.now().isoformat()
+                })
+                
+                # Send updated history
+                await self._broadcast_to_frontend({
+                    "type": "conversation_history",
+                    "history": conversation_history
+                })
+                
+            # Capture interim transcriptions
             elif isinstance(frame, InterimTranscriptionFrame):
-                logger.debug(f"... {frame.text}")
+                logger.debug(f"Interim: {frame.text}")
                 await self._broadcast_to_frontend({
                     "type": "transcription",
                     "text": frame.text,
                     "final": False
                 })
-            
-            # Capture assistant responses
-            elif isinstance(frame, TextFrame):
-                # Check if this is going downstream (to TTS)
-                if hasattr(frame, 'text') and frame.text:
-                    logger.info(f"🤖 Assistant: {frame.text}")
-                    
-                    if not self.collecting_reply:
-                        self.collecting_reply = True
-                        self.assistant_reply = ""
-                    
-                    self.assistant_reply += frame.text + " "
-                    
-                    # Send partial assistant response
-                    await self._broadcast_to_frontend({
-                        "type": "assistant_reply",
-                        "text": self.assistant_reply.strip(),
-                        "final": False
-                    })
-            
-            # When audio starts being sent, mark reply as final
-            elif isinstance(frame, AudioRawFrame) and direction == FrameDirection.DOWNSTREAM:
-                if self.collecting_reply and self.assistant_reply:
-                    await self._broadcast_to_frontend({
-                        "type": "assistant_reply",
-                        "text": self.assistant_reply.strip(),
-                        "final": True
-                    })
-                    self.collecting_reply = False
-                    self.assistant_reply = ""
-                    
+                
         except Exception as e:
-            logger.error(f"Error in FrameLogger: {e}")
+            logger.error(f"Error in TranscriptionCapture: {e}")
         
-        # IMPORTANT: Forward the frame with direction
         await self.push_frame(frame, direction)
     
     async def _broadcast_to_frontend(self, message: dict):
@@ -137,72 +134,96 @@ class FrameLogger(FrameProcessor):
             for client in frontend_clients:
                 try:
                     await client.send(message_str)
-                    logger.debug(f"Sent to frontend: {message['type']}")
                 except Exception as e:
                     logger.error(f"Error sending to frontend client: {e}")
                     disconnected.add(client)
             
             # Remove disconnected clients
             frontend_clients.difference_update(disconnected)
-    
-class AssistantResponseTracker(FrameProcessor):
-    """Track and send assistant responses to frontend"""
+
+
+class AssistantResponseCapture(FrameProcessor):
+    """Capture assistant responses from LLM output"""
     
     def __init__(self):
         super().__init__()
-        self.current_response = []
-        self.response_timer = None
-        self.MIN_SILENCE_DURATION = 0.5  # 500ms of silence to consider response complete
+        self.response_buffer = []
+        self.collecting = False
+        self.finalize_task = None
         
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
         
-        # Collect text frames
-        if isinstance(frame, TextFrame):
-            # Cancel any existing timer
-            if self.response_timer:
-                self.response_timer.cancel()
-            
-            # Add text to current response
-            self.current_response.append(frame.text)
-            
-            # Send partial update with all accumulated text
-            current_text = ''.join(self.current_response)
-            logger.debug(f"Assistant partial: {current_text}")
-            
-            await self._broadcast_to_frontend({
-                "type": "assistant_reply", 
-                "text": current_text,
-                "final": False
-            })
-            
-            # Set timer to finalize response after silence
-            self.response_timer = asyncio.create_task(self._finalize_response())
+        global conversation_history
+        
+        try:
+            # Capture TextFrames going downstream (from LLM to TTS)
+            if isinstance(frame, TextFrame) and direction == FrameDirection.DOWNSTREAM:
+                if frame.text:
+                    logger.debug(f"Assistant text: {frame.text}")
+                    
+                    # Cancel any pending finalization
+                    if self.finalize_task:
+                        self.finalize_task.cancel()
+                    
+                    # Start collecting if needed
+                    if not self.collecting:
+                        self.collecting = True
+                        self.response_buffer = []
+                    
+                    # Add to buffer
+                    self.response_buffer.append(frame.text)
+                    current_text = ''.join(self.response_buffer)
+                    
+                    # Send partial response
+                    await self._broadcast_to_frontend({
+                        "type": "assistant_reply",
+                        "text": current_text,
+                        "final": False
+                    })
+                    
+                    # Schedule finalization
+                    self.finalize_task = asyncio.create_task(self._finalize_response())
+                    
+        except Exception as e:
+            logger.error(f"Error in AssistantResponseCapture: {e}")
         
         await self.push_frame(frame, direction)
     
     async def _finalize_response(self):
-        """Finalize response after a period of silence"""
+        """Finalize response after a delay"""
         try:
-            # Wait for silence duration
-            await asyncio.sleep(self.MIN_SILENCE_DURATION)
+            await asyncio.sleep(1.0)
             
-            # If we get here, no new text came in during the wait
-            if self.current_response:
-                final_text = ''.join(self.current_response)
-                logger.info(f"🤖 Assistant complete: {final_text}")
+            if self.collecting and self.response_buffer:
+                final_text = ''.join(self.response_buffer)
+                logger.info(f"🤖 Assistant said: {final_text}")
                 
+                # Send final response
                 await self._broadcast_to_frontend({
                     "type": "assistant_reply",
                     "text": final_text,
                     "final": True
                 })
                 
-                # Clear the response buffer
-                self.current_response = []
+                # Add to conversation history
+                conversation_history.append({
+                    "role": "assistant",
+                    "content": final_text,
+                    "timestamp": datetime.now().isoformat()
+                })
+                
+                # Send updated history
+                await self._broadcast_to_frontend({
+                    "type": "conversation_history",
+                    "history": conversation_history
+                })
+                
+                # Reset state
+                self.collecting = False
+                self.response_buffer = []
                 
         except asyncio.CancelledError:
-            # Timer was cancelled because new text arrived
             pass
     
     async def _broadcast_to_frontend(self, message: dict):
@@ -224,6 +245,8 @@ class AssistantResponseTracker(FrameProcessor):
 
 async def handle_frontend_connection(websocket, path):
     """Handle frontend WebSocket connections (separate from audio)"""
+    global current_system_prompt, conversation_history, context, context_aggregator, pipeline_task
+    
     frontend_clients.add(websocket)
     logger.info(f"Frontend client connected: {websocket.remote_address}")
     
@@ -234,15 +257,112 @@ async def handle_frontend_connection(websocket, path):
             "status": "connected"
         }))
         
-        # Keep connection alive and handle any messages from frontend
+        # Send current system prompt
+        await websocket.send(json.dumps({
+            "type": "system_prompt",
+            "prompt": current_system_prompt
+        }))
+        
+        # Send conversation history
+        await websocket.send(json.dumps({
+            "type": "conversation_history",
+            "history": conversation_history
+        }))
+        
+        # Handle messages from frontend
         async for message in websocket:
-            logger.debug(f"Received from frontend: {message}")
-            # You can handle frontend commands here if needed
+            try:
+                data = json.loads(message)
+                logger.debug(f"Received from frontend: {data}")
+                
+                if data.get("type") == "update_system_prompt":
+                    # Update system prompt
+                    new_prompt = data.get("prompt", "")
+                    if new_prompt:
+                        current_system_prompt = new_prompt
+                        logger.info(f"System prompt updated: {current_system_prompt[:50]}...")
+                        
+                        # Update the context with new system prompt
+                        if context and context_aggregator:
+                            # Reset context to only system message
+                            new_messages = [
+                                {
+                                    "role": "system",
+                                    "content": current_system_prompt,
+                                }
+                            ]
+                            context.set_messages(new_messages)
+                            
+                            # Send context update frame
+                            # if pipeline_task:
+                            #     await pipeline_task.queue_frames([context_aggregator.user().get_context_frame()])
+                            
+                            logger.info("Reset LLM context with new system prompt")
+                        
+                        # Broadcast the update to all clients
+                        await broadcast_to_all_clients({
+                            "type": "system_prompt",
+                            "prompt": current_system_prompt
+                        })
+                        
+                        # Clear conversation history when prompt is updated
+                        conversation_history.clear()
+                        await broadcast_to_all_clients({
+                            "type": "conversation_history",
+                            "history": conversation_history
+                        })
+                
+                elif data.get("type") == "clear_history":
+                    # Clear conversation history
+                    conversation_history.clear()
+                    logger.info("Conversation history cleared")
+                    
+                    # Reset context to just system prompt
+                    if context:
+                        new_messages = [
+                            {
+                                "role": "system",
+                                "content": current_system_prompt,
+                            }
+                        ]
+                        context.set_messages(new_messages)
+                        
+                        # Send context update
+                        if pipeline_task and context_aggregator:
+                            await pipeline_task.queue_frames([context_aggregator.user().get_context_frame()])
+                    
+                    # Broadcast the update
+                    await broadcast_to_all_clients({
+                        "type": "conversation_history",
+                        "history": conversation_history
+                    })
+                    
+            except json.JSONDecodeError:
+                logger.error(f"Invalid JSON from frontend: {message}")
+            except Exception as e:
+                logger.error(f"Error handling frontend message: {e}")
             
     except websockets.exceptions.ConnectionClosed:
         logger.info(f"Frontend client disconnected: {websocket.remote_address}")
     finally:
         frontend_clients.remove(websocket)
+
+
+async def broadcast_to_all_clients(message: dict):
+    """Broadcast message to all connected frontend clients"""
+    if frontend_clients:
+        message_str = json.dumps(message)
+        disconnected = set()
+        
+        for client in frontend_clients:
+            try:
+                await client.send(message_str)
+            except Exception as e:
+                logger.error(f"Error broadcasting to client: {e}")
+                disconnected.add(client)
+        
+        # Remove disconnected clients
+        frontend_clients.difference_update(disconnected)
 
 
 async def run_frontend_server():
@@ -252,6 +372,8 @@ async def run_frontend_server():
 
 
 async def main():
+    global current_system_prompt, pipeline_task, context, context_aggregator
+    
     # Start the frontend WebSocket server
     frontend_server = asyncio.create_task(run_frontend_server())
     
@@ -288,41 +410,37 @@ async def main():
         model="eleven_flash_v2_5"
     )
     
-    # Create frame logger
-    frame_logger = FrameLogger()
+    # Create capture processors
+    transcription_capture = TranscriptionCapture()
+    assistant_capture = AssistantResponseCapture()
     
-    # Create assistant response tracker
-    assistant_tracker = AssistantResponseTracker()
-    
-    # Initial messages
+    # Create context with initial system prompt
     messages = [
         {
             "role": "system",
-            "content": "You are a helpful voice assistant. Keep your responses concise and conversational. Your output will be converted to audio so don't include special characters in your answers. Start by greeting the user when they connect.",
-        },
+            "content": current_system_prompt,
+        }
     ]
+    context = OpenAILLMContext(messages)
+    context_aggregator = llm.create_context_aggregator(context)
     
-    # Create aggregators
-    user_response = LLMUserResponseAggregator(messages)
-    assistant_response = LLMAssistantResponseAggregator(messages)
-    
-    # Build pipeline with frame logger and assistant tracker
+    # Build pipeline with context aggregator
     pipeline = Pipeline(
         [
-            transport.input(),      # WebSocket input from client
-            stt,                   # Speech-To-Text
-            frame_logger,          # Log and send transcriptions to frontend
-            user_response,         # Aggregate user response
-            llm,                   # LLM
-            assistant_tracker,     # Track and send assistant responses
-            tts,                   # Text-To-Speech
-            transport.output(),    # WebSocket output to client
-            assistant_response,    # Update conversation context
+            transport.input(),           # WebSocket input from client
+            stt,                        # Speech-To-Text
+            transcription_capture,      # Capture user transcriptions
+            context_aggregator.user(),  # User context aggregator
+            llm,                        # LLM
+            assistant_capture,          # Capture assistant responses
+            tts,                        # Text-To-Speech
+            transport.output(),         # WebSocket output to client
+            context_aggregator.assistant(),  # Assistant context aggregator
         ]
     )
     
     # Create task
-    task = PipelineTask(
+    pipeline_task = PipelineTask(
         pipeline,
         params=PipelineParams(
             audio_in_sample_rate=16000,
@@ -334,8 +452,8 @@ async def main():
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
         logger.info(f"Audio client connected from {client.remote_address}")
-        # Don't add another greeting - let the initial system prompt handle it
-        await task.queue_frames([LLMMessagesFrame(messages)])
+        
+        # Don't send any initial context - wait for user to speak first
     
     @transport.event_handler("on_client_disconnected")
     async def on_client_disconnected(transport, client):
@@ -349,7 +467,7 @@ async def main():
     runner = PipelineRunner()
     
     try:
-        await runner.run(task)
+        await runner.run(pipeline_task)
     finally:
         # Cancel the frontend server when pipeline stops
         frontend_server.cancel()

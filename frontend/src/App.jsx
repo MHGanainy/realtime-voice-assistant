@@ -1,15 +1,20 @@
 import { useState, useRef, useEffect } from 'react';
 import protobuf from 'protobufjs';
+import './App.css';
 
 export default function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [transcript, setTranscript] = useState('');
-  const [botReply, setBotReply] = useState('');
-  const [status, setStatus] = useState('Loading protobuf...');
+  const [systemPrompt, setSystemPrompt] = useState('You are a helpful voice assistant. Keep your responses concise and conversational. Your output will be converted to audio so don\'t include special characters in your answers.');
+  const [tempSystemPrompt, setTempSystemPrompt] = useState('You are a helpful voice assistant. Keep your responses concise and conversational. Your output will be converted to audio so don\'t include special characters in your answers.');
+  const [isPromptLocked, setIsPromptLocked] = useState(true);
+  const [conversationHistory, setConversationHistory] = useState([]);
+  const [logs, setLogs] = useState([]);
+  const [currentInteraction, setCurrentInteraction] = useState({ user: '', assistant: '' });
+  const [latencyData, setLatencyData] = useState({ llm: 0, tts: 0, total: 0 });
   
   const wsRef = useRef(null);
-  const dataWsRef = useRef(null); // New: WebSocket for data/transcriptions
+  const dataWsRef = useRef(null);
   const mediaStreamRef = useRef(null);
   const audioContextRef = useRef(null);
   const scriptProcessorRef = useRef(null);
@@ -17,6 +22,10 @@ export default function App() {
   const frameTypeRef = useRef(null);
   const playTimeRef = useRef(0);
   const lastMessageTimeRef = useRef(0);
+  const logsEndRef = useRef(null);
+  const conversationEndRef = useRef(null);
+  const startTimeRef = useRef(null);
+  const audioChunkCountRef = useRef(0);
   
   // Constants
   const SAMPLE_RATE = 16000;
@@ -25,6 +34,9 @@ export default function App() {
   
   // Load protobuf schema
   useEffect(() => {
+    // Skip if already loaded (React StrictMode runs effects twice)
+    if (frameTypeRef.current) return;
+    
     const protoDefinition = `
       syntax = "proto3";
       package pipecat;
@@ -64,12 +76,79 @@ export default function App() {
     try {
       const root = protobuf.parse(protoDefinition).root;
       frameTypeRef.current = root.lookupType('pipecat.Frame');
-      setStatus('Ready! Click "Start Recording" to begin.');
+      addLog('info', 'Protobuf schema loaded successfully');
     } catch (err) {
       console.error('Failed to load protobuf:', err);
-      setStatus('Error loading protobuf: ' + err.message);
+      addLog('error', `Failed to load protobuf: ${err.message}`);
     }
   }, []);
+  
+  // Connect to data WebSocket on mount to get initial state
+  useEffect(() => {
+    // Only connect if not already connected
+    if (!dataWsRef.current || dataWsRef.current.readyState !== WebSocket.OPEN) {
+      connectDataWebSocket();
+    }
+    
+    return () => {
+      if (dataWsRef.current && dataWsRef.current.readyState === WebSocket.OPEN) {
+        dataWsRef.current.close();
+      }
+    };
+  }, []);
+  
+  // Auto-scroll logs and conversation
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logs]);
+  
+  useEffect(() => {
+    conversationEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [conversationHistory]);
+  
+  const addLog = (level, message) => {
+    const timestamp = new Date().toLocaleTimeString('en-US', { 
+      hour12: false, 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit',
+      fractionalSecondDigits: 2 
+    });
+    
+    // Special handling for audio chunk messages
+    if (message === 'Audio chunk queued for playback') {
+      audioChunkCountRef.current++;
+      // Only log every 10th audio chunk to reduce spam
+      if (audioChunkCountRef.current % 10 === 0) {
+        setLogs(prev => [...prev.slice(-100), { 
+          timestamp, 
+          level, 
+          message: `Audio playback in progress (${audioChunkCountRef.current} chunks)` 
+        }]);
+      }
+      return;
+    }
+    
+    // Reset audio chunk counter when assistant finishes speaking
+    if (message.startsWith('Assistant:')) {
+      audioChunkCountRef.current = 0;
+    }
+    
+    setLogs(prev => {
+      // Check if the last log is identical (same message within 100ms)
+      if (prev.length > 0) {
+        const lastLog = prev[prev.length - 1];
+        if (lastLog.message === message && lastLog.level === level) {
+          const lastTime = new Date(`1970-01-01T${lastLog.timestamp}Z`).getTime();
+          const currentTime = new Date(`1970-01-01T${timestamp}Z`).getTime();
+          if (Math.abs(currentTime - lastTime) < 100) {
+            return prev; // Skip duplicate log
+          }
+        }
+      }
+      return [...prev.slice(-100), { timestamp, level, message }];
+    });
+  };
   
   const convertFloat32ToS16PCM = (float32Array) => {
     const int16Array = new Int16Array(float32Array.length);
@@ -87,7 +166,6 @@ export default function App() {
       const parsedFrame = frameTypeRef.current.decode(new Uint8Array(arrayBuffer));
       
       if (parsedFrame?.audio) {
-        // Reset play time if it's been a while
         const currentTime = audioContextRef.current.currentTime;
         const diffTime = currentTime - lastMessageTimeRef.current;
         if (playTimeRef.current === 0 || diffTime > PLAY_TIME_RESET_THRESHOLD_MS) {
@@ -95,33 +173,45 @@ export default function App() {
         }
         lastMessageTimeRef.current = currentTime;
         
-        // Convert audio data
         const audioVector = Array.from(parsedFrame.audio.audio);
         const audioArray = new Uint8Array(audioVector);
         
-        // Decode and play
         audioContextRef.current.decodeAudioData(audioArray.buffer, (buffer) => {
           const source = audioContextRef.current.createBufferSource();
           source.buffer = buffer;
           source.start(playTimeRef.current);
           source.connect(audioContextRef.current.destination);
           playTimeRef.current += buffer.duration;
+          addLog('debug', 'Audio chunk queued for playback');
         }, (error) => {
           console.error('Error decoding audio:', error);
+          addLog('error', `Error decoding audio: ${error.message}`);
         });
       }
     } catch (err) {
       console.error('Error processing frame:', err);
+      addLog('error', `Error processing frame: ${err.message}`);
     }
   };
   
   const connectDataWebSocket = () => {
-    // Connect to the data WebSocket for transcriptions and responses
+    // Prevent duplicate connections
+    if (dataWsRef.current && dataWsRef.current.readyState === WebSocket.OPEN) {
+      addLog('debug', 'Data WebSocket already connected, skipping reconnection');
+      return; // Already connected
+    }
+    
+    // Close any existing connection in connecting state
+    if (dataWsRef.current && dataWsRef.current.readyState === WebSocket.CONNECTING) {
+      addLog('debug', 'Data WebSocket is connecting, aborting duplicate connection');
+      return;
+    }
+    
     const dataWs = new WebSocket('ws://localhost:8766');
     dataWsRef.current = dataWs;
     
     dataWs.onopen = () => {
-      console.log('Data WebSocket connected');
+      addLog('info', 'Data WebSocket connected');
     };
     
     dataWs.onmessage = (event) => {
@@ -129,31 +219,49 @@ export default function App() {
         const data = JSON.parse(event.data);
         
         if (data.type === 'connection') {
-          console.log('Frontend connection confirmed:', data.status);
+          addLog('info', `Connection status: ${data.status}`);
         } else if (data.type === 'transcription') {
-          console.log('Transcription:', data.text, data.final ? '(final)' : '(interim)');
           if (data.final) {
-            setTranscript(data.text);
-            setStatus('Processing...');
+            setCurrentInteraction(prev => ({ ...prev, user: data.text }));
+            addLog('info', `User: ${data.text}`);
+            startTimeRef.current = Date.now();
           } else {
-            setTranscript(data.text + '...');
+            setCurrentInteraction(prev => ({ ...prev, user: data.text + '...' }));
           }
         } else if (data.type === 'assistant_reply') {
-          console.log('Assistant:', data.text, data.final ? '(final)' : '(partial)');
-          setBotReply(data.text);
-          setStatus(data.final ? 'Assistant replied' : 'Assistant speaking...');
+          setCurrentInteraction(prev => ({ ...prev, assistant: data.text }));
+          if (data.final && startTimeRef.current) {
+            const totalTime = Date.now() - startTimeRef.current;
+            setLatencyData(prev => ({ ...prev, total: totalTime }));
+            addLog('info', `Assistant: ${data.text}`);
+            startTimeRef.current = null;
+          }
+        } else if (data.type === 'conversation_history') {
+          setConversationHistory(data.history);
+          addLog('debug', `Received ${data.history.length} conversation items`);
+        } else if (data.type === 'system_prompt') {
+          setSystemPrompt(data.prompt);
+          setTempSystemPrompt(data.prompt);
+          addLog('info', 'System prompt received from backend');
+        } else if (data.type === 'log') {
+          // Handle logs from backend
+          if (data.message && !data.message.includes('Sent to frontend')) {
+            addLog(data.level, data.message);
+          }
         }
       } catch (err) {
         console.error('Error parsing data message:', err);
+        addLog('error', `Error parsing message: ${err.message}`);
       }
     };
     
     dataWs.onerror = (error) => {
       console.error('Data WebSocket error:', error);
+      addLog('error', 'Data WebSocket error occurred');
     };
     
     dataWs.onclose = () => {
-      console.log('Data WebSocket closed');
+      addLog('info', 'Data WebSocket disconnected');
       dataWsRef.current = null;
     };
     
@@ -162,7 +270,7 @@ export default function App() {
   
   const startRecording = async () => {
     if (!frameTypeRef.current) {
-      setStatus('Protobuf not loaded yet');
+      addLog('error', 'Protobuf not loaded yet');
       return;
     }
     
@@ -173,26 +281,27 @@ export default function App() {
         sampleRate: SAMPLE_RATE
       });
       
-      // Clear previous state
-      setTranscript('');
-      setBotReply('');
+      // Clear current interaction and reset audio chunk counter
+      setCurrentInteraction({ user: '', assistant: '' });
       playTimeRef.current = 0;
       lastMessageTimeRef.current = 0;
+      audioChunkCountRef.current = 0;
       
-      // Connect data WebSocket first
-      connectDataWebSocket();
+      // Make sure data WebSocket is connected
+      if (!dataWsRef.current || dataWsRef.current.readyState !== WebSocket.OPEN) {
+        connectDataWebSocket();
+      }
       
       // Connect audio WebSocket
       const ws = new WebSocket('ws://localhost:8765');
       ws.binaryType = 'arraybuffer';
       wsRef.current = ws;
       
-      setStatus('Connecting...');
+      addLog('info', 'Connecting to audio WebSocket...');
       
       ws.onopen = async () => {
-        console.log('Audio WebSocket connected');
+        addLog('info', 'Audio WebSocket connected');
         setIsConnected(true);
-        setStatus('Getting microphone...');
         
         try {
           // Get microphone stream
@@ -206,6 +315,7 @@ export default function App() {
             }
           });
           
+          addLog('info', 'Microphone access granted');
           mediaStreamRef.current = stream;
           
           // Setup audio processing
@@ -221,7 +331,6 @@ export default function App() {
             const pcmS16Array = convertFloat32ToS16PCM(audioData);
             const pcmByteArray = new Uint8Array(pcmS16Array.buffer);
             
-            // Create the frame
             const frame = {
               audio: {
                 audio: pcmByteArray,
@@ -230,18 +339,17 @@ export default function App() {
               }
             };
             
-            // Encode and send
             const message = frameTypeRef.current.create(frame);
             const buffer = frameTypeRef.current.encode(message).finish();
             ws.send(buffer);
           };
           
           setIsRecording(true);
-          setStatus('Listening... Speak clearly into your microphone');
+          addLog('info', 'Recording started');
           
         } catch (err) {
           console.error('Microphone error:', err);
-          setStatus('Microphone access denied');
+          addLog('error', `Microphone access denied: ${err.message}`);
           ws.close();
         }
       };
@@ -252,26 +360,27 @@ export default function App() {
       
       ws.onerror = (error) => {
         console.error('Audio WebSocket error:', error);
-        setStatus('Connection error');
+        addLog('error', 'Audio WebSocket error occurred');
       };
       
       ws.onclose = () => {
-        console.log('Audio WebSocket closed');
+        addLog('info', 'Audio WebSocket closed');
         stopRecording();
         setIsConnected(false);
-        setStatus('Disconnected');
       };
       
     } catch (error) {
       console.error('Failed to start recording:', error);
-      setStatus('Failed to start: ' + error.message);
+      addLog('error', `Failed to start recording: ${error.message}`);
     }
   };
   
   const stopRecording = () => {
-    console.log('Stopping recording...');
+    // Only log if actually recording
+    if (isRecording) {
+      addLog('info', 'Stopping recording...');
+    }
     
-    // Stop audio processing
     if (scriptProcessorRef.current) {
       scriptProcessorRef.current.disconnect();
       scriptProcessorRef.current = null;
@@ -282,24 +391,45 @@ export default function App() {
       sourceRef.current = null;
     }
     
-    // Stop media stream
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach(track => track.stop());
       mediaStreamRef.current = null;
     }
     
-    // Close both WebSockets
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.close();
     }
     wsRef.current = null;
     
-    if (dataWsRef.current && dataWsRef.current.readyState === WebSocket.OPEN) {
-      dataWsRef.current.close();
-    }
-    dataWsRef.current = null;
-    
     setIsRecording(false);
+    if (isRecording) {
+      addLog('info', 'Recording stopped');
+    }
+  };
+  
+  const updateSystemPrompt = () => {
+    if (dataWsRef.current && dataWsRef.current.readyState === WebSocket.OPEN) {
+      dataWsRef.current.send(JSON.stringify({
+        type: 'update_system_prompt',
+        prompt: tempSystemPrompt
+      }));
+      setSystemPrompt(tempSystemPrompt);
+      setIsPromptLocked(true);
+      addLog('info', 'System prompt updated and history cleared');
+    } else {
+      addLog('error', 'Data WebSocket not connected');
+    }
+  };
+  
+  const clearHistory = () => {
+    if (dataWsRef.current && dataWsRef.current.readyState === WebSocket.OPEN) {
+      dataWsRef.current.send(JSON.stringify({
+        type: 'clear_history'
+      }));
+      addLog('info', 'Conversation history cleared');
+    } else {
+      addLog('error', 'Data WebSocket not connected');
+    }
   };
   
   // Cleanup on unmount
@@ -313,111 +443,149 @@ export default function App() {
   }, []);
   
   return (
-    <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', maxWidth: '800px', margin: '0 auto', padding: '2rem' }}>
-      <header style={{ textAlign: 'center', marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '2rem', marginBottom: '1rem' }}>Voice Assistant (Pipecat)</h1>
-        <div style={{
-          padding: '0.5rem 1rem',
-          borderRadius: '4px',
-          backgroundColor: isConnected ? '#065f46' : '#7f1d1d',
-          color: 'white',
-          display: 'inline-block'
-        }}>
-          {status}
+    <div className="app">
+      <header className="app-header">
+        <h1>Voice Assistant Dev Testing</h1>
+        <div className={`connection-status ${isConnected ? 'connected' : 'disconnected'}`}>
+          <span className="status-dot"></span>
+          {isConnected ? 'Connected' : 'Disconnected'}
         </div>
       </header>
       
-      <main>
-        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <button
-            onClick={isRecording ? stopRecording : startRecording}
-            disabled={!frameTypeRef.current}
-            style={{
-              backgroundColor: isRecording ? '#dc2626' : '#2563eb',
-              color: 'white',
-              border: 'none',
-              padding: '1rem 2rem',
-              borderRadius: '8px',
-              fontSize: '1.125rem',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              transition: 'all 0.2s'
-            }}
-          >
-            {isRecording ? (
-              <>
-                <span style={{
-                  width: '8px',
-                  height: '8px',
-                  backgroundColor: 'white',
-                  borderRadius: '50%',
-                  animation: 'pulse 1.5s infinite'
-                }}></span>
-                Stop Recording
-              </>
-            ) : (
-              <>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="9" y="3" width="6" height="11" rx="3"/>
-                  <path d="M5 12v1a7 7 0 0014 0v-1M12 18v3"/>
-                </svg>
-                Start Recording
-              </>
-            )}
-          </button>
-        </div>
-        
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div style={{
-            backgroundColor: '#f3f4f6',
-            padding: '1rem',
-            borderRadius: '8px',
-            borderLeft: '4px solid #2563eb'
-          }}>
-            <div style={{ fontWeight: 'bold', marginBottom: '0.5rem', color: '#1f2937' }}>You</div>
-            <div style={{ color: '#4b5563' }}>
-              {transcript || <span style={{ fontStyle: 'italic' }}>Speak into your microphone...</span>}
+      <div className="app-content">
+        <div className="left-panel">
+          <section className="system-prompt-section">
+            <div className="section-header">
+              <h2>SYSTEM PROMPT</h2>
+              <button 
+                className={`lock-button ${isPromptLocked ? 'locked' : 'unlocked'}`}
+                onClick={() => setIsPromptLocked(!isPromptLocked)}
+              >
+                {isPromptLocked ? '🔒 Locked' : '🔓 Unlocked'}
+              </button>
             </div>
-          </div>
+            <textarea
+              className="system-prompt-input"
+              value={tempSystemPrompt}
+              onChange={(e) => setTempSystemPrompt(e.target.value)}
+              disabled={isPromptLocked}
+              placeholder="Enter system prompt..."
+            />
+            <button 
+              className="update-button"
+              onClick={updateSystemPrompt}
+              disabled={isPromptLocked || tempSystemPrompt === systemPrompt}
+            >
+              Update & Clear History
+            </button>
+          </section>
           
-          <div style={{
-            backgroundColor: '#f3f4f6',
-            padding: '1rem',
-            borderRadius: '8px',
-            borderLeft: '4px solid #10b981'
-          }}>
-            <div style={{ fontWeight: 'bold', marginBottom: '0.5rem', color: '#1f2937' }}>Assistant</div>
-            <div style={{ color: '#4b5563' }}>
-              {botReply || <span style={{ fontStyle: 'italic' }}>Waiting for response...</span>}
+          <section className="recording-section">
+            <button
+              className={`record-button ${isRecording ? 'recording' : ''}`}
+              onClick={isRecording ? stopRecording : startRecording}
+              disabled={!frameTypeRef.current}
+            >
+              {isRecording ? (
+                <>
+                  <span className="stop-icon">⏹</span>
+                  Stop Recording
+                </>
+              ) : (
+                <>
+                  <span className="mic-icon">🎤</span>
+                  Start Recording
+                </>
+              )}
+            </button>
+          </section>
+          
+          <section className="latencies-section">
+            <h2>CURRENT LATENCIES</h2>
+            <div className="latency-grid">
+              <div className="latency-item">
+                <div className="latency-label">LLM</div>
+                <div className="latency-value">{latencyData.llm}ms</div>
+              </div>
+              <div className="latency-item">
+                <div className="latency-label">TTS</div>
+                <div className="latency-value">{latencyData.tts}ms</div>
+              </div>
+              <div className="latency-item total">
+                <div className="latency-label">Total</div>
+                <div className="latency-value">{latencyData.total}ms</div>
+              </div>
             </div>
-          </div>
+          </section>
+          
+          <section className="current-interaction-section">
+            <h2>Current Interaction</h2>
+            <div className="interaction-content">
+              <div className="interaction-item">
+                <div className="interaction-label">USER</div>
+                <div className="interaction-text">
+                  {currentInteraction.user || 'Waiting for input...'}
+                </div>
+              </div>
+              <div className="interaction-item">
+                <div className="interaction-label">ASSISTANT</div>
+                <div className="interaction-text">
+                  {currentInteraction.assistant || 'Waiting for response...'}
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
         
-        <div style={{
-          marginTop: '2rem',
-          padding: '1rem',
-          backgroundColor: '#1f2937',
-          color: '#d1d5db',
-          borderRadius: '8px',
-          fontSize: '0.875rem'
-        }}>
-          <div style={{ marginBottom: '0.5rem', fontWeight: 'bold' }}>Debug Info:</div>
-          <div>Recording: {isRecording ? 'Yes' : 'No'}</div>
-          <div>Connected: {isConnected ? 'Yes' : 'No'}</div>
-          <div>Audio WebSocket: ws://localhost:8765</div>
-          <div>Data WebSocket: ws://localhost:8766</div>
+        <div className="middle-panel">
+          <section className="conversation-history-section">
+            <div className="section-header">
+              <h2>CONVERSATION HISTORY</h2>
+              <button className="clear-button" onClick={clearHistory}>
+                Clear
+              </button>
+            </div>
+            <div className="conversation-list">
+              {conversationHistory.length === 0 ? (
+                <div className="history-message" style={{ textAlign: 'center', color: '#666', padding: '2rem' }}>
+                  No conversation history yet. Start recording to begin.
+                </div>
+              ) : (
+                conversationHistory.map((msg, index) => (
+                  <div key={index} className={`history-message ${msg.role}`}>
+                    <div className="message-role">{msg.role.toUpperCase()}</div>
+                    <div className="message-content">{msg.content}</div>
+                    <div className="message-timestamp">
+                      {new Date(msg.timestamp).toLocaleTimeString()}
+                    </div>
+                  </div>
+                ))
+              )}
+              <div ref={conversationEndRef} />
+            </div>
+          </section>
         </div>
-      </main>
-      
-      <style>{`
-        @keyframes pulse {
-          0% { opacity: 1; }
-          50% { opacity: 0.5; }
-          100% { opacity: 1; }
-        }
-      `}</style>
+        
+        <div className="right-panel">
+          <section className="debug-logs-section">
+            <div className="section-header">
+              <h2>DEBUG LOGS</h2>
+              <button className="clear-button" onClick={() => setLogs([])}>
+                Clear
+              </button>
+            </div>
+            <div className="logs-container">
+              {logs.map((log, index) => (
+                <div key={index} className={`log-entry ${log.level}`}>
+                  <span className="log-timestamp">{log.timestamp}</span>
+                  <span className="log-message">{log.message}</span>
+                </div>
+              ))}
+              <div ref={logsEndRef} />
+            </div>
+          </section>
+        </div>
+      </div>
     </div>
   );
 }
