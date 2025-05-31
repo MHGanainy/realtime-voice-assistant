@@ -1,3 +1,6 @@
+/* ========================================================================== */
+/* Global reset & base typography                                            */
+/* ========================================================================== */
 * {
   box-sizing: border-box;
   margin: 0;
@@ -9,7 +12,6 @@ body,
 #root {
   height: 100vh;
   width: 100vw;
-  margin: 0;
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
 }
@@ -30,7 +32,9 @@ body {
   overflow: hidden;
 }
 
-/* Header */
+/* ========================================================================== */
+/* Header                                                                     */
+/* ========================================================================== */
 .app-header {
   background: #1a1a1a;
   padding: 1rem 2rem;
@@ -75,7 +79,33 @@ body {
   box-shadow: 0 0 4px #ef4444;
 }
 
-/* Main Content */
+/* ========================================================================== */
+/* Notification bar                                                           */
+/* ========================================================================== */
+.notification-bar {
+  background: #1e3a8a;
+  color: #fff;
+  padding: 0.75rem 2rem;
+  text-align: center;
+  font-size: 0.875rem;
+  border-bottom: 1px solid #2563eb;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* ========================================================================== */
+/* Main Content Layout                                                        */
+/* ========================================================================== */
 .app-content {
   flex: 1;
   display: flex;
@@ -84,7 +114,7 @@ body {
   height: calc(100vh - 60px);
 }
 
-/* Panels - 25% - 50% - 25% */
+/* Panels: 25% - 50% - 25% */
 .left-panel {
   width: 25%;
   background: #111;
@@ -96,6 +126,8 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 0;
+  max-height: calc(100vh - 60px);
+  height: 100%;
 }
 
 .middle-panel {
@@ -121,11 +153,9 @@ body {
   min-height: 0;
 }
 
-/* Section headers and titles */
-h2 {
-  margin: 0;
-}
-
+/* -------------------------------------------------------------------------- */
+/* Section headers                                                            */
+/* -------------------------------------------------------------------------- */
 .section-header {
   display: flex;
   justify-content: space-between;
@@ -142,11 +172,12 @@ h2 {
   color: #888;
 }
 
-/* System Prompt Section */
-.system-prompt-section {
-  margin-bottom: 1rem;
-  flex-shrink: 0;
-}
+h2 { margin: 0; }
+
+/* ========================================================================== */
+/* System prompt textarea + lock                                              */
+/* ========================================================================== */
+.system-prompt-section { margin-bottom: 1rem; }
 
 .lock-button {
   background: #222;
@@ -156,18 +187,11 @@ h2 {
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.75rem;
-  transition: all 0.2s;
+  transition: background 0.2s, color 0.2s;
 }
 
-.lock-button:hover {
-  background: #333;
-  color: #fff;
-}
-
-.lock-button.unlocked {
-  color: #f59e0b;
-  border-color: #f59e0b;
-}
+.lock-button:hover { background: #333; color: #fff; }
+.lock-button.unlocked { color: #f59e0b; border-color: #f59e0b; }
 
 .system-prompt-input {
   width: 100%;
@@ -184,15 +208,8 @@ h2 {
   margin-bottom: 0.75rem;
 }
 
-.system-prompt-input:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.system-prompt-input:focus {
-  outline: none;
-  border-color: #4a9eff;
-}
+.system-prompt-input:focus { outline: none; border-color: #4a9eff; }
+.system-prompt-input:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .update-button {
   width: 100%;
@@ -204,24 +221,48 @@ h2 {
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.2s;
 }
 
-.update-button:hover:not(:disabled) {
-  background: #3b8eef;
-}
+.update-button:hover:not(:disabled) { background: #3b8eef; }
+.update-button:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.update-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Recording Section */
-.recording-section {
+/* ========================================================================== */
+/* NEW dropdown component styles                                              */
+/* ========================================================================== */
+.service-dropdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
   margin-bottom: 1rem;
-  text-align: center;
-  flex-shrink: 0;
 }
+
+.service-dropdown__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #888;
+}
+
+.service-dropdown__select {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #e5e5e5;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.service-dropdown__select:hover:not(:disabled) { background: #222; }
+.service-dropdown__select:focus { outline: none; border-color: #4a9eff; }
+.service-dropdown__select:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ========================================================================== */
+/* Recording button                                                           */
+/* ========================================================================== */
+.recording-section { margin-bottom: 1rem; text-align: center; }
 
 .record-button {
   width: 100%;
@@ -237,33 +278,25 @@ h2 {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  transition: all 0.2s;
+  transition: background 0.2s;
 }
 
-.record-button:hover:not(:disabled) {
-  background: #b91c1c;
+.record-button:hover:not(:disabled) { background: #b91c1c; }
+.record-button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.record-button.recording { background: #dc2626; animation: pulse 2s infinite; }
+
+.mic-icon, .stop-icon { font-size: 1.25rem; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.7; }
 }
 
-.record-button.recording {
-  background: #dc2626;
-  animation: pulse 2s infinite;
-}
-
-.record-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.mic-icon,
-.stop-icon {
-  font-size: 1.25rem;
-}
-
-/* Latencies Section */
-.latencies-section {
-  margin-bottom: 1rem;
-  flex-shrink: 0;
-}
+/* ========================================================================== */
+/* Latency cards                                                              */
+/* ========================================================================== */
+.latencies-section { margin-bottom: 1rem; }
 
 .latency-grid {
   display: grid;
@@ -279,11 +312,7 @@ h2 {
   text-align: center;
 }
 
-.latency-item.total {
-  grid-column: span 2;
-  background: #1e3a8a;
-  border-color: #2563eb;
-}
+.latency-item.total { grid-column: span 2; background: #1e3a8a; border-color: #2563eb; }
 
 .latency-label {
   font-size: 0.75rem;
@@ -292,36 +321,20 @@ h2 {
   text-transform: uppercase;
 }
 
-.latency-value {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #fff;
-}
+.latency-value { font-size: 1.25rem; font-weight: 600; }
 
-/* Current Interaction Section */
-.current-interaction-section {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-}
+/* ========================================================================== */
+/* Current interaction block                                                  */
+/* ========================================================================== */
+.current-interaction-section { margin-top: 1rem; }
 
-.interaction-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  overflow-y: auto;
-  min-height: 0;
-}
+.interaction-content { display: flex; flex-direction: column; gap: 0.75rem; }
 
 .interaction-item {
   background: #1a1a1a;
   border: 1px solid #333;
   border-radius: 4px;
   padding: 0.75rem;
-  flex-shrink: 0;
 }
 
 .interaction-label {
@@ -332,20 +345,12 @@ h2 {
   text-transform: uppercase;
 }
 
-.interaction-text {
-  color: #e5e5e5;
-  line-height: 1.5;
-  min-height: 1.5rem;
-}
+.interaction-text { color: #e5e5e5; line-height: 1.5; min-height: 1.5rem; }
 
-/* Conversation History Section */
-.conversation-history-section {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-}
+/* ========================================================================== */
+/* Conversation history                                                       */
+/* ========================================================================== */
+.conversation-history-section { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 
 .conversation-list {
   flex: 1;
@@ -357,49 +362,23 @@ h2 {
   min-height: 0;
 }
 
-.history-message {
-  margin-bottom: 1rem;
-  animation: fadeIn 0.3s ease-in;
-}
+.history-message { margin-bottom: 1rem; animation: fadeIn 0.3s ease-in; }
 
-.history-message:last-child {
-  margin-bottom: 0;
-}
+.history-message:last-child { margin-bottom: 0; }
 
-.history-message .message-role {
-  font-size: 0.75rem;
-  font-weight: 600;
-  margin-bottom: 0.25rem;
-  text-transform: uppercase;
-}
+.history-message .message-role { font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem; text-transform: uppercase; }
+.history-message.user .message-role { color: #4a9eff; }
+.history-message.assistant .message-role { color: #22c55e; }
 
-.history-message.user .message-role {
-  color: #4a9eff;
-}
+.history-message .message-content { color: #e5e5e5; line-height: 1.5; margin-bottom: 0.25rem; }
+.history-message .message-timestamp { font-size: 0.75rem; color: #666; }
 
-.history-message.assistant .message-role {
-  color: #22c55e;
-}
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
-.history-message .message-content {
-  color: #e5e5e5;
-  line-height: 1.5;
-  margin-bottom: 0.25rem;
-}
-
-.history-message .message-timestamp {
-  font-size: 0.75rem;
-  color: #666;
-}
-
-/* Debug Logs Section */
-.debug-logs-section {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-}
+/* ========================================================================== */
+/* Debug logs                                                                 */
+/* ========================================================================== */
+.debug-logs-section { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 
 .logs-container {
   flex: 1;
@@ -414,40 +393,18 @@ h2 {
   min-height: 0;
 }
 
-.log-entry {
-  margin-bottom: 0.25rem;
-  display: flex;
-  gap: 0.5rem;
-  animation: fadeIn 0.2s ease-in;
-}
+.log-entry { margin-bottom: 0.25rem; display: flex; gap: 0.5rem; animation: fadeIn 0.2s ease-in; }
+.log-timestamp { color: #666; flex-shrink: 0; }
+.log-message { color: #e5e5e5; word-break: break-word; }
 
-.log-timestamp {
-  color: #666;
-  flex-shrink: 0;
-}
+.log-entry.error .log-message { color: #ef4444; }
+.log-entry.warning .log-message { color: #f59e0b; }
+.log-entry.info .log-message { color: #4a9eff; }
+.log-entry.debug .log-message { color: #888; }
 
-.log-message {
-  color: #e5e5e5;
-  word-break: break-word;
-}
-
-.log-entry.error .log-message {
-  color: #ef4444;
-}
-
-.log-entry.warning .log-message {
-  color: #f59e0b;
-}
-
-.log-entry.info .log-message {
-  color: #4a9eff;
-}
-
-.log-entry.debug .log-message {
-  color: #888;
-}
-
-/* Buttons */
+/* ========================================================================== */
+/* Buttons (generic clear, etc.)                                              */
+/* ========================================================================== */
 .clear-button {
   background: transparent;
   border: 1px solid #333;
@@ -456,96 +413,37 @@ h2 {
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.75rem;
-  transition: all 0.2s;
+  transition: background 0.2s, color 0.2s;
 }
 
-.clear-button:hover {
-  background: #333;
-  color: #fff;
-}
+.clear-button:hover { background: #333; color: #fff; }
 
-/* Animations */
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.7;
-  }
-}
+/* ========================================================================== */
+/* Scrollbar styling                                                          */
+/* ========================================================================== */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0a0a0a; }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #444; }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: #0a0a0a;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #333;
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #444;
-}
-
-/* Responsive */
+/* ========================================================================== */
+/* Responsive breakpoints                                                     */
+/* ========================================================================== */
 @media (max-width: 1400px) {
-  .left-panel,
-  .right-panel {
-    width: 30%;
-  }
-  
-  .middle-panel {
-    width: 40%;
-  }
+  .left-panel, .right-panel { width: 30%; }
+  .middle-panel { width: 40%; }
 }
 
 @media (max-width: 1200px) {
-  .app-header {
-    padding: 0.75rem 1.5rem;
-  }
-  
-  .app-header h1 {
-    font-size: 1.1rem;
-  }
-  
-  .left-panel,
-  .middle-panel,
-  .right-panel {
-    padding: 0.75rem;
-  }
-  
-  .latency-value {
-    font-size: 1.1rem;
-  }
+  .app-header { padding: 0.75rem 1.5rem; }
+  .app-header h1 { font-size: 1.1rem; }
+  .left-panel, .middle-panel, .right-panel { padding: 0.75rem; }
+  .latency-value { font-size: 1.1rem; }
 }
 
 @media (max-width: 992px) {
-  .app-content {
-    flex-direction: column;
-    height: calc(100vh - 60px);
-    overflow-y: auto;
-  }
-
-  .left-panel,
-  .middle-panel,
-  .right-panel {
+  .app-content { flex-direction: column; height: calc(100vh - 60px); overflow-y: auto; }
+  .left-panel, .middle-panel, .right-panel {
     width: 100%;
     border-right: none;
     border-bottom: 1px solid #333;
@@ -553,8 +451,5 @@ h2 {
     max-height: none;
     height: auto;
   }
-  
-  .right-panel {
-    border-bottom: none;
-  }
+  .right-panel { border-bottom: none; }
 }

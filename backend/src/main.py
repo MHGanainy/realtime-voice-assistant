@@ -47,7 +47,7 @@ class MetricsLogHandler:
                     
                     print(f"[METRICS DEBUG] Parsed service: {service_type}, TTFB: {ttfb_ms}ms")
                     
-                    if "OpenAISTTService" in service_type:
+                    if "STTService" in service_type:  # Changed to catch both OpenAI and Deepgram
                         latency_metrics["stt"] = ttfb_ms
                         self.last_stt_time = time.time()
                         print(f"[METRICS] Captured STT latency: {ttfb_ms}ms")
@@ -57,7 +57,7 @@ class MetricsLogHandler:
                         self.last_llm_time = time.time()
                         print(f"[METRICS] Captured LLM latency: {ttfb_ms}ms")
                         
-                    elif "ElevenLabsTTSService" in service_type:
+                    elif "TTSService" in service_type:  # Changed to catch both ElevenLabs and Deepgram
                         latency_metrics["tts"] = ttfb_ms
                         self.last_tts_time = time.time()
                         print(f"[METRICS] Captured TTS latency: {ttfb_ms}ms")
@@ -120,8 +120,10 @@ from pipecat.frames.frames import (
 from pipecat.processors.frame_processor import FrameProcessor, FrameDirection
 from pipecat.serializers.protobuf import ProtobufFrameSerializer
 from pipecat.services.openai.stt import OpenAISTTService
+from pipecat.services.deepgram.stt import DeepgramSTTService
 from pipecat.services.openai.llm import OpenAILLMService
 from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
+from pipecat.services.deepgram.tts import DeepgramTTSService
 from pipecat.transports.network.websocket_server import (
     WebsocketServerParams,
     WebsocketServerTransport,
@@ -130,9 +132,10 @@ from pipecat.transports.network.websocket_server import (
 # Configuration
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ELEVEN_API_KEY = os.getenv("ELEVEN_API_KEY")
+DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
 
-if not all([OPENAI_API_KEY, ELEVEN_API_KEY]):
-    raise ValueError("Missing required API keys. Please set OPENAI_API_KEY and ELEVEN_API_KEY")
+if not all([OPENAI_API_KEY, ELEVEN_API_KEY, DEEPGRAM_API_KEY]):
+    raise ValueError("Missing required API keys. Please set OPENAI_API_KEY, ELEVEN_API_KEY, and DEEPGRAM_API_KEY")
 
 
 # Global set to track frontend WebSocket connections
@@ -148,6 +151,13 @@ current_system_prompt = "You are a helpful voice assistant. Keep your responses 
 pipeline_task = None
 context = None
 context_aggregator = None
+current_stt_service = "openai"  # Track current STT service
+current_llm_model = "gpt-3.5-turbo"  # Track current LLM model
+current_tts_service = "elevenlabs"  # Track current TTS service
+stt_service = None  # Global STT service reference
+llm_service = None  # Global LLM service reference
+tts_service = None  # Global TTS service reference
+pipeline_runner = None  # Global pipeline runner reference
 
 # Global latency tracking
 latency_metrics = {
@@ -344,7 +354,7 @@ class AssistantResponseCapture(FrameProcessor):
 
 async def handle_frontend_connection(websocket, path):
     """Handle frontend WebSocket connections (separate from audio)"""
-    global current_system_prompt, conversation_history, context, context_aggregator, pipeline_task
+    global current_system_prompt, conversation_history, context, context_aggregator, pipeline_task, current_stt_service, current_llm_model, current_tts_service
     
     frontend_clients.add(websocket)
     logger.info(f"Frontend client connected: {websocket.remote_address}")
@@ -377,6 +387,24 @@ async def handle_frontend_connection(websocket, path):
                 "tts": latency_metrics["tts"],
                 "total": latency_metrics["total"]
             }
+        }))
+        
+        # Send current STT service
+        await websocket.send(json.dumps({
+            "type": "stt_service",
+            "service": current_stt_service
+        }))
+        
+        # Send current LLM model
+        await websocket.send(json.dumps({
+            "type": "llm_model",
+            "model": current_llm_model
+        }))
+        
+        # Send current TTS service
+        await websocket.send(json.dumps({
+            "type": "tts_service",
+            "service": current_tts_service
         }))
         
         # Handle messages from frontend
@@ -442,6 +470,70 @@ async def handle_frontend_connection(websocket, path):
                         "type": "conversation_history",
                         "history": conversation_history
                     })
+                
+                elif data.get("type") == "change_stt_service":
+                    # Change STT service
+                    new_service = data.get("service", "openai")
+                    if new_service in ["openai", "deepgram"] and new_service != current_stt_service:
+                        current_stt_service = new_service
+                        logger.info(f"STT service changed to: {current_stt_service}")
+                        
+                        # Broadcast the update to all clients
+                        await broadcast_to_all_clients({
+                            "type": "stt_service",
+                            "service": current_stt_service
+                        })
+                        
+                        # Note: The actual STT service will be changed when a new recording starts
+                        await broadcast_to_all_clients({
+                            "type": "notification",
+                            "message": f"STT service changed to {current_stt_service.title()}. This will take effect on the next recording."
+                        })
+                    else:
+                        logger.debug(f"STT service already set to {new_service} or invalid service name")
+                
+                elif data.get("type") == "change_llm_model":
+                    # Change LLM model
+                    new_model = data.get("model", "gpt-3.5-turbo")
+                    if new_model in ["gpt-3.5-turbo", "gpt-4o-mini"] and new_model != current_llm_model:
+                        current_llm_model = new_model
+                        logger.info(f"LLM model changed to: {current_llm_model}")
+                        
+                        # Broadcast the update to all clients
+                        await broadcast_to_all_clients({
+                            "type": "llm_model",
+                            "model": current_llm_model
+                        })
+                        
+                        # Note: The actual LLM service will be changed when a new recording starts
+                        model_display_name = "GPT-3.5 Turbo" if new_model == "gpt-3.5-turbo" else "GPT-4o Mini"
+                        await broadcast_to_all_clients({
+                            "type": "notification",
+                            "message": f"LLM model changed to {model_display_name}. This will take effect on the next recording."
+                        })
+                    else:
+                        logger.debug(f"LLM model already set to {new_model} or invalid model name")
+                
+                elif data.get("type") == "change_tts_service":
+                    # Change TTS service
+                    new_service = data.get("service", "elevenlabs")
+                    if new_service in ["elevenlabs", "deepgram"] and new_service != current_tts_service:
+                        current_tts_service = new_service
+                        logger.info(f"TTS service changed to: {current_tts_service}")
+                        
+                        # Broadcast the update to all clients
+                        await broadcast_to_all_clients({
+                            "type": "tts_service",
+                            "service": current_tts_service
+                        })
+                        
+                        # Note: The actual TTS service will be changed when a new recording starts
+                        await broadcast_to_all_clients({
+                            "type": "notification",
+                            "message": f"TTS service changed to {current_tts_service.title()}. This will take effect on the next recording."
+                        })
+                    else:
+                        logger.debug(f"TTS service already set to {new_service} or invalid service name")
                     
             except json.JSONDecodeError:
                 logger.error(f"Invalid JSON from frontend: {message}")
@@ -477,8 +569,51 @@ async def run_frontend_server():
     await websockets.serve(handle_frontend_connection, "localhost", 8766)
 
 
+def create_stt_service(service_name: str):
+    """Create the appropriate STT service based on the service name"""
+    if service_name == "openai":
+        return OpenAISTTService(
+            api_key=OPENAI_API_KEY,
+            model="whisper-1"
+        )
+    elif service_name == "deepgram":
+        return DeepgramSTTService(
+            api_key=DEEPGRAM_API_KEY,
+            model="nova-2"
+        )
+    else:
+        raise ValueError(f"Unknown STT service: {service_name}")
+
+
+def create_llm_service(model_name: str):
+    """Create the appropriate LLM service based on the model name"""
+    return OpenAILLMService(
+        api_key=OPENAI_API_KEY,
+        model=model_name
+    )
+
+
+def create_tts_service(service_name: str):
+    """Create the appropriate TTS service based on the service name"""
+    if service_name == "elevenlabs":
+        return ElevenLabsTTSService(
+            api_key=ELEVEN_API_KEY,
+            voice_id="EXAVITQu4vr4xnSDxMaL",
+            model="eleven_flash_v2_5"
+        )
+    elif service_name == "deepgram":
+        return DeepgramTTSService(
+            api_key=DEEPGRAM_API_KEY,
+            voice="aura-helios-en",
+            sample_rate=16000,
+            encoding="linear16"
+        )
+    else:
+        raise ValueError(f"Unknown TTS service: {service_name}")
+
+
 async def main():
-    global current_system_prompt, pipeline_task, context, context_aggregator, latency_metrics
+    global current_system_prompt, pipeline_task, context, context_aggregator, latency_metrics, stt_service, llm_service, tts_service, pipeline_runner
     
     # Start the frontend WebSocket server
     frontend_server = asyncio.create_task(run_frontend_server())
@@ -499,28 +634,7 @@ async def main():
         )
     )
     
-    # Create services
-    stt = OpenAISTTService(
-        api_key=OPENAI_API_KEY,
-        model="whisper-1"
-    )
-    
-    llm = OpenAILLMService(
-        api_key=OPENAI_API_KEY,
-        model="gpt-3.5-turbo"
-    )
-    
-    tts = ElevenLabsTTSService(
-        api_key=ELEVEN_API_KEY,
-        voice_id="EXAVITQu4vr4xnSDxMaL",
-        model="eleven_flash_v2_5"
-    )
-    
-    # Create capture processors
-    transcription_capture = TranscriptionCapture()
-    assistant_capture = AssistantResponseCapture()
-    
-    # Create context with initial system prompt
+    # Create initial context with system prompt
     messages = [
         {
             "role": "system",
@@ -528,38 +642,62 @@ async def main():
         }
     ]
     context = OpenAILLMContext(messages)
-    context_aggregator = llm.create_context_aggregator(context)
     
-    # Build pipeline with context aggregator
-    pipeline = Pipeline(
-        [
-            transport.input(),           # WebSocket input from client
-            stt,                        # Speech-To-Text
-            transcription_capture,      # Capture user transcriptions
-            context_aggregator.user(),  # User context aggregator
-            llm,                        # LLM
-            assistant_capture,          # Capture assistant responses
-            tts,                        # Text-To-Speech
-            transport.output(),         # WebSocket output to client
-            context_aggregator.assistant(),  # Assistant context aggregator
-        ]
-    )
+    # Create runner
+    runner = PipelineRunner()
     
-    # Create task with metrics enabled
-    pipeline_task = PipelineTask(
-        pipeline,
-        params=PipelineParams(
-            audio_in_sample_rate=16000,
-            audio_out_sample_rate=16000,
-            allow_interruptions=True,
-            enable_metrics=True,           # Enable performance metrics
-            report_only_initial_ttfb=False, # Get TTFB for each interaction
-        ),
-    )
-    
+    # Event handler to create new pipeline with selected STT service, LLM model, and TTS service
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
+        global stt_service, llm_service, tts_service, pipeline_task, context_aggregator
+        
         logger.info(f"Audio client connected from {client.remote_address}")
+        
+        # Create STT service based on current selection
+        stt_service = create_stt_service(current_stt_service)
+        logger.info(f"Using {current_stt_service.upper()} STT service for new client")
+        
+        # Create LLM service based on current selection
+        llm_service = create_llm_service(current_llm_model)
+        logger.info(f"Using {current_llm_model} LLM model for new client")
+        
+        # Create TTS service based on current selection
+        tts_service = create_tts_service(current_tts_service)
+        logger.info(f"Using {current_tts_service.upper()} TTS service for new client")
+        
+        # Create context aggregator for the selected LLM service
+        context_aggregator = llm_service.create_context_aggregator(context)
+        
+        # Create NEW capture processors for each client
+        client_transcription_capture = TranscriptionCapture()
+        client_assistant_capture = AssistantResponseCapture()
+        
+        # Build pipeline with selected services
+        pipeline = Pipeline(
+            [
+                transport.input(),                  # WebSocket input from client
+                stt_service,                       # Speech-To-Text (selected service)
+                client_transcription_capture,      # Capture user transcriptions
+                context_aggregator.user(),         # User context aggregator
+                llm_service,                       # LLM (selected model)
+                client_assistant_capture,          # Capture assistant responses
+                tts_service,                       # Text-To-Speech (selected service)
+                transport.output(),               # WebSocket output to client
+                context_aggregator.assistant(),   # Assistant context aggregator
+            ]
+        )
+        
+        # Create task with metrics enabled
+        pipeline_task = PipelineTask(
+            pipeline,
+            params=PipelineParams(
+                audio_in_sample_rate=16000,
+                audio_out_sample_rate=16000,
+                allow_interruptions=True,
+                enable_metrics=True,           # Enable performance metrics
+                report_only_initial_ttfb=False, # Get TTFB for each interaction
+            ),
+        )
         
         # Reset metrics for new client
         latency_metrics["interaction_start"] = None
@@ -567,6 +705,9 @@ async def main():
         latency_metrics["llm"] = 0
         latency_metrics["tts"] = 0
         latency_metrics["total"] = 0
+        
+        # Run the pipeline for this client
+        await runner.run(pipeline_task)
     
     @transport.event_handler("on_client_disconnected")
     async def on_client_disconnected(transport, client):
@@ -576,11 +717,18 @@ async def main():
     async def on_session_timeout(transport, client):
         logger.info(f"Session timeout for {client.remote_address}")
     
-    # Run the pipeline
-    runner = PipelineRunner()
+    # Create a dummy pipeline just to start the transport
+    # The actual pipeline will be created when a client connects
+    dummy_pipeline = Pipeline([
+        transport.input(),
+        transport.output()
+    ])
+    
+    task = PipelineTask(dummy_pipeline)
     
     try:
-        await runner.run(pipeline_task)
+        # Run the pipeline (this will start the WebSocket server)
+        await runner.run(task)
     finally:
         # Cancel the frontend server when pipeline stops
         frontend_server.cancel()
@@ -590,4 +738,7 @@ if __name__ == "__main__":
     logger.info("Starting Voice Assistant Backend")
     logger.info("Audio WebSocket server on ws://localhost:8765")
     logger.info("Frontend WebSocket server on ws://localhost:8766")
+    logger.info(f"Default STT service: {current_stt_service}")
+    logger.info(f"Default LLM model: {current_llm_model}")
+    logger.info(f"Default TTS service: {current_tts_service}")
     asyncio.run(main())
