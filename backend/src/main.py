@@ -57,6 +57,7 @@ from pipecat.services.deepgram.stt import DeepgramSTTService
 from pipecat.services.openai.llm import OpenAILLMService
 from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
 from pipecat.services.deepgram.tts import DeepgramTTSService
+from pipecat.services.openai.tts import OpenAITTSService  # Add OpenAI TTS import
 from pipecat.transports.network.fastapi_websocket import (
     FastAPIWebsocketTransport,
     FastAPIWebsocketParams
@@ -203,7 +204,7 @@ def create_llm_service(model_name: str, service_name: str):
         raise ValueError(f"Unknown LLM service: {service_name}")
 
 
-def create_tts_service(service_name: str):
+def create_tts_service(service_name: str, session_data: Dict[str, Any]):
     """Create the appropriate TTS service"""
     if service_name == "elevenlabs":
         return ElevenLabsTTSService(
@@ -214,9 +215,16 @@ def create_tts_service(service_name: str):
     elif service_name == "deepgram":
         return DeepgramTTSService(
             api_key=DEEPGRAM_API_KEY,
-            voice="aura-helios-en",
+            voice="aura-2-thalia-en",
             sample_rate=16000,
             encoding="linear16"
+        )
+    elif service_name == "openai":
+        return OpenAITTSService(
+            api_key=OPENAI_API_KEY,
+            voice="nova",  # Using alloy as the single voice
+            model="gpt-4o-mini-tts",  # Using only the optimized model
+            sample_rate=24000,
         )
     else:
         raise ValueError(f"Unknown TTS service: {service_name}")
@@ -560,7 +568,7 @@ async def websocket_data_endpoint(websocket: WebSocket):
             
             elif data.get("type") == "change_tts_service":
                 service = data.get("service", "elevenlabs")
-                if service in ["elevenlabs", "deepgram"]:
+                if service in ["elevenlabs", "deepgram", "openai"]:
                     session_data["settings"]["tts_service"] = service
                     await broadcast_to_session(session_id, {
                         "type": "tts_service",
@@ -615,7 +623,7 @@ async def websocket_audio_endpoint(websocket: WebSocket):
             session_data["settings"]["llm_model"],
             session_data["settings"]["llm_service"]
         )
-        tts = create_tts_service(session_data["settings"]["tts_service"])
+        tts = create_tts_service(session_data["settings"]["tts_service"], session_data)
         
         logger.info(f"Session {session_id}: Using {session_data['settings']['stt_service']} STT, "
                    f"{session_data['settings']['llm_model']} LLM ({session_data['settings']['llm_service']}), "

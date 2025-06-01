@@ -57,6 +57,8 @@ const AVAILABLE_MODELS = [
   { id: 'mistralai/Mistral-Nemo-Instruct-2407', name: 'Mistral Nemo 12B', service: 'deepinfra', category: 'Mistral' }
 ];
 
+
+
 export default function App() {
   // ---------------------------------------------------------------------------
   // State ---------------------------------------------------------------------
@@ -492,7 +494,13 @@ export default function App() {
         const modelName = modelInfo ? modelInfo.name : llmModel;
         const serviceName = llmService === 'deepinfra' ? 'DeepInfra' : 'OpenAI';
         
-        addLog('info', `Using ${sttService.toUpperCase()} STT, ${modelName} (${serviceName}), ${ttsService.toUpperCase()} TTS`);
+        // Format TTS service info
+        let ttsInfo = ttsService.toUpperCase();
+        if (ttsService === 'openai') {
+          ttsInfo = 'OpenAI (Nova)';
+        }
+        
+        addLog('info', `Using ${sttService.toUpperCase()} STT, ${modelName} (${serviceName}), ${ttsInfo} TTS`);
         setIsConnected(true);
 
         try {
@@ -803,6 +811,7 @@ export default function App() {
               >
                 <option value="elevenlabs">ElevenLabs</option>
                 <option value="deepgram">Deepgram Aura</option>
+                <option value="openai">OpenAI (Nova)</option>
               </select>
             </label>
           </section>
