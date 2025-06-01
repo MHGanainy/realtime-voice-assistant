@@ -1,6 +1,7 @@
 # backend/src/main.py
 """
 Pipecat voice assistant with FastAPI and session management
+Now with DeepInfra Llama support
 """
 import asyncio
 import os
@@ -25,6 +26,10 @@ import uvicorn
 # Load environment variables
 env_path = Path(__file__).parent.parent / '.env'
 load_dotenv(env_path)
+
+# Import the DeepInfra service (assuming it's in a services folder)
+# You'll need to place the deepinfra_llm.py file in your project
+from services.deepinfra_llm import DeepInfraLLMService
 
 # Pipecat imports
 from pipecat.audio.vad.silero import SileroVADAnalyzer
@@ -61,6 +66,7 @@ from pipecat.transports.network.fastapi_websocket import (
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ELEVEN_API_KEY = os.getenv("ELEVEN_API_KEY")
 DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
+DEEPINFRA_API_KEY = os.getenv("DEEPINFRA_API_KEY")  # Add this to your .env file
 
 if not all([OPENAI_API_KEY, ELEVEN_API_KEY, DEEPGRAM_API_KEY]):
     raise ValueError("Missing required API keys. Please set OPENAI_API_KEY, ELEVEN_API_KEY, and DEEPGRAM_API_KEY")
@@ -133,6 +139,7 @@ def get_session_data(session_id: str) -> Dict[str, Any]:
             "settings": {
                 "stt_service": "openai",
                 "llm_model": "gpt-3.5-turbo",
+                "llm_service": "openai",  # New setting to track which LLM service
                 "tts_service": "elevenlabs"
             },
             "latency_metrics": {
@@ -179,9 +186,32 @@ def create_stt_service(service_name: str):
         raise ValueError(f"Unknown STT service: {service_name}")
 
 
-def create_llm_service(model_name: str):
+def create_llm_service(model_name: str, service_name: str):
     """Create the appropriate LLM service"""
-    return OpenAILLMService(api_key=OPENAI_API_KEY, model=model_name)
+    if service_name == "openai":
+        return OpenAILLMService(api_key=OPENAI_API_KEY, model=model_name)
+    elif service_name == "deepinfra":
+        # Map model names to DeepInfra model IDs
+        deepinfra_models = {
+            "llama-3.1-70b": "meta-llama/Meta-Llama-3.1-70B-Instruct",
+            "llama-3.1-8b": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+            "llama-3.2-3b": "meta-llama/Llama-3.2-3B-Instruct",
+            "llama-3.2-1b": "meta-llama/Llama-3.2-1B-Instruct",
+            "mixtral-8x7b": "mistralai/Mixtral-8x7B-Instruct-v0.1",
+            "qwen-2.5-72b": "Qwen/Qwen2.5-72B-Instruct"
+        }
+        
+        model_id = deepinfra_models.get(model_name, model_name)
+        
+        if not DEEPINFRA_API_KEY:
+            raise ValueError("DEEPINFRA_API_KEY not set in environment variables")
+            
+        return DeepInfraLLMService(
+            api_key=DEEPINFRA_API_KEY,
+            model=model_id
+        )
+    else:
+        raise ValueError(f"Unknown LLM service: {service_name}")
 
 
 def create_tts_service(service_name: str):
@@ -358,7 +388,7 @@ class SessionMetricsHandler:
                     
                     if "STTService" in service_type:
                         metrics["stt"] = ttfb_ms
-                    elif "OpenAILLMService" in service_type:
+                    elif "LLMService" in service_type:
                         metrics["llm"] = ttfb_ms
                     elif "TTSService" in service_type:
                         metrics["tts"] = ttfb_ms
@@ -381,14 +411,6 @@ class SessionMetricsHandler:
                             metrics["interaction_start"] = None
         except Exception as e:
             logger.error(f"Error in metrics handler: {e}")
-
-
-# Startup event to initialize pipeline runner
-@app.on_event("startup")
-async def startup_event():
-    global pipeline_runner
-    pipeline_runner = PipelineRunner()
-    logger.info("Pipeline runner initialized")
 
 
 # WebSocket endpoints
@@ -444,6 +466,11 @@ async def websocket_data_endpoint(websocket: WebSocket):
         await websocket.send_json({
             "type": "llm_model",
             "model": session_data["settings"]["llm_model"]
+        })
+        
+        await websocket.send_json({
+            "type": "llm_service",
+            "service": session_data["settings"]["llm_service"]
         })
         
         await websocket.send_json({
@@ -510,17 +537,39 @@ async def websocket_data_endpoint(websocket: WebSocket):
             
             elif data.get("type") == "change_llm_model":
                 model = data.get("model", "gpt-3.5-turbo")
-                if model in ["gpt-3.5-turbo", "gpt-4o-mini"]:
-                    session_data["settings"]["llm_model"] = model
-                    await broadcast_to_session(session_id, {
-                        "type": "llm_model",
-                        "model": model
-                    })
-                    model_name = "GPT-3.5 Turbo" if model == "gpt-3.5-turbo" else "GPT-4o Mini"
-                    await broadcast_to_session(session_id, {
-                        "type": "notification",
-                        "message": f"LLM model changed to {model_name}. This will take effect on the next recording."
-                    })
+                service = data.get("service", "openai")
+                
+                # Update model and service
+                session_data["settings"]["llm_model"] = model
+                session_data["settings"]["llm_service"] = service
+                
+                await broadcast_to_session(session_id, {
+                    "type": "llm_model",
+                    "model": model
+                })
+                await broadcast_to_session(session_id, {
+                    "type": "llm_service",
+                    "service": service
+                })
+                
+                # Create friendly name for notification
+                model_names = {
+                    "gpt-3.5-turbo": "GPT-3.5 Turbo",
+                    "gpt-4o-mini": "GPT-4o Mini",
+                    "llama-3.1-70b": "Llama 3.1 70B",
+                    "llama-3.1-8b": "Llama 3.1 8B",
+                    "llama-3.2-3b": "Llama 3.2 3B",
+                    "llama-3.2-1b": "Llama 3.2 1B",
+                    "mixtral-8x7b": "Mixtral 8x7B",
+                    "qwen-2.5-72b": "Qwen 2.5 72B"
+                }
+                model_name = model_names.get(model, model)
+                service_name = "DeepInfra" if service == "deepinfra" else "OpenAI"
+                
+                await broadcast_to_session(session_id, {
+                    "type": "notification",
+                    "message": f"LLM changed to {model_name} ({service_name}). This will take effect on the next recording."
+                })
             
             elif data.get("type") == "change_tts_service":
                 service = data.get("service", "elevenlabs")
@@ -575,11 +624,15 @@ async def websocket_audio_endpoint(websocket: WebSocket):
         
         # Create services based on session settings
         stt = create_stt_service(session_data["settings"]["stt_service"])
-        llm = create_llm_service(session_data["settings"]["llm_model"])
+        llm = create_llm_service(
+            session_data["settings"]["llm_model"],
+            session_data["settings"]["llm_service"]
+        )
         tts = create_tts_service(session_data["settings"]["tts_service"])
         
         logger.info(f"Session {session_id}: Using {session_data['settings']['stt_service']} STT, "
-                   f"{session_data['settings']['llm_model']} LLM, {session_data['settings']['tts_service']} TTS")
+                   f"{session_data['settings']['llm_model']} LLM ({session_data['settings']['llm_service']}), "
+                   f"{session_data['settings']['tts_service']} TTS")
         
         # Create context
         session_data["context"] = OpenAILLMContext([{
@@ -650,8 +703,66 @@ async def health_check():
     return {"status": "healthy", "sessions": len(sessions_store)}
 
 
+@app.get("/api/models")
+async def get_available_models():
+    """Get list of available models"""
+    return {
+        "models": [
+            {
+                "id": "gpt-3.5-turbo",
+                "name": "GPT-3.5 Turbo",
+                "service": "openai",
+                "description": "Fast and efficient for most tasks"
+            },
+            {
+                "id": "gpt-4o-mini",
+                "name": "GPT-4o Mini",
+                "service": "openai",
+                "description": "More capable than GPT-3.5"
+            },
+            {
+                "id": "llama-3.1-70b",
+                "name": "Llama 3.1 70B",
+                "service": "deepinfra",
+                "description": "Large open-source model with strong capabilities"
+            },
+            {
+                "id": "llama-3.1-8b",
+                "name": "Llama 3.1 8B",
+                "service": "deepinfra",
+                "description": "Smaller, faster Llama model"
+            },
+            {
+                "id": "llama-3.2-3b",
+                "name": "Llama 3.2 3B",
+                "service": "deepinfra",
+                "description": "Lightweight model for quick responses"
+            },
+            {
+                "id": "llama-3.2-1b",
+                "name": "Llama 3.2 1B",
+                "service": "deepinfra",
+                "description": "Ultra-fast model for simple tasks"
+            },
+            {
+                "id": "mixtral-8x7b",
+                "name": "Mixtral 8x7B",
+                "service": "deepinfra",
+                "description": "MoE model with excellent performance"
+            },
+            {
+                "id": "qwen-2.5-72b",
+                "name": "Qwen 2.5 72B",
+                "service": "deepinfra",
+                "description": "Large multilingual model"
+            }
+        ]
+    }
+
+
 if __name__ == "__main__":
     logger.info("Starting FastAPI Voice Assistant with Session Support")
+    logger.info("Now with DeepInfra Llama support!")
     logger.info("Data WebSocket: ws://localhost:8000/ws/data")
     logger.info("Audio WebSocket: ws://localhost:8000/ws/audio")
     

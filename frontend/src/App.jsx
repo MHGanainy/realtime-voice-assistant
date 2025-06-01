@@ -13,6 +13,18 @@ const getSessionId = () => {
   return sessionId;
 };
 
+// Model definitions
+const AVAILABLE_MODELS = [
+  { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', service: 'openai', group: 'OpenAI' },
+  { id: 'gpt-4o-mini', name: 'GPT-4o Mini', service: 'openai', group: 'OpenAI' },
+  { id: 'llama-3.1-70b', name: 'Llama 3.1 70B', service: 'deepinfra', group: 'DeepInfra' },
+  { id: 'llama-3.1-8b', name: 'Llama 3.1 8B', service: 'deepinfra', group: 'DeepInfra' },
+  { id: 'llama-3.2-3b', name: 'Llama 3.2 3B', service: 'deepinfra', group: 'DeepInfra' },
+  { id: 'llama-3.2-1b', name: 'Llama 3.2 1B', service: 'deepinfra', group: 'DeepInfra' },
+  { id: 'mixtral-8x7b', name: 'Mixtral 8x7B', service: 'deepinfra', group: 'DeepInfra' },
+  { id: 'qwen-2.5-72b', name: 'Qwen 2.5 72B', service: 'deepinfra', group: 'DeepInfra' }
+];
+
 export default function App() {
   // ---------------------------------------------------------------------------
   // State ---------------------------------------------------------------------
@@ -35,6 +47,7 @@ export default function App() {
 
   const [sttService, setSttService] = useState('openai');
   const [llmModel, setLlmModel] = useState('gpt-3.5-turbo');
+  const [llmService, setLlmService] = useState('openai');
   const [ttsService, setTtsService] = useState('elevenlabs');
   const [notification, setNotification] = useState('');
   const [showDebugToolkit, setShowDebugToolkit] = useState(false);
@@ -362,6 +375,10 @@ export default function App() {
               setLlmModel(data.model);
               addLog('info', `LLM model set to ${data.model}`);
               break;
+            case 'llm_service':
+              setLlmService(data.service);
+              addLog('info', `LLM service set to ${data.service}`);
+              break;
             case 'tts_service':
               setTtsService(data.service);
               addLog('info', `TTS service set to ${data.service}`);
@@ -437,7 +454,13 @@ export default function App() {
 
       ws.onopen = async () => {
         addLog('info', 'Audio WebSocket connected to FastAPI');
-        addLog('info', `Using ${sttService.toUpperCase()} STT, ${llmModel === 'gpt-3.5-turbo' ? 'GPT‑3.5 Turbo' : 'GPT‑4o Mini'}, ${ttsService.toUpperCase()} TTS`);
+        
+        // Get model info and format logging
+        const modelInfo = AVAILABLE_MODELS.find(m => m.id === llmModel);
+        const modelName = modelInfo ? modelInfo.name : llmModel;
+        const serviceName = llmService === 'deepinfra' ? 'DeepInfra' : 'OpenAI';
+        
+        addLog('info', `Using ${sttService.toUpperCase()} STT, ${modelName} (${serviceName}), ${ttsService.toUpperCase()} TTS`);
         setIsConnected(true);
 
         try {
@@ -544,7 +567,16 @@ export default function App() {
 
   const clearHistory = () => sendBackend({ type: 'clear_history' }) && addLog('info', 'Conversation history cleared');
   const handleSttServiceChange = (s) => sendBackend({ type: 'change_stt_service', service: s }) && setSttService(s);
-  const handleLlmModelChange = (m) => sendBackend({ type: 'change_llm_model', model: m }) && setLlmModel(m);
+  
+  const handleLlmModelChange = (modelId) => {
+    const model = AVAILABLE_MODELS.find(m => m.id === modelId);
+    if (model) {
+      sendBackend({ type: 'change_llm_model', model: modelId, service: model.service });
+      setLlmModel(modelId);
+      setLlmService(model.service);
+    }
+  };
+  
   const handleTtsServiceChange = (s) => sendBackend({ type: 'change_tts_service', service: s }) && setTtsService(s);
 
   // ---------------------------------------------------------------------------
@@ -686,9 +718,18 @@ export default function App() {
                 value={llmModel}
                 onChange={(e) => handleLlmModelChange(e.target.value)}
                 disabled={isRecording}
+                style={{ fontSize: '0.875rem' }}
               >
-                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                <option value="gpt-4o-mini">GPT-4o Mini</option>
+                <optgroup label="OpenAI Models">
+                  {AVAILABLE_MODELS.filter(m => m.service === 'openai').map(model => (
+                    <option key={model.id} value={model.id}>{model.name}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="DeepInfra Models">
+                  {AVAILABLE_MODELS.filter(m => m.service === 'deepinfra').map(model => (
+                    <option key={model.id} value={model.id}>{model.name}</option>
+                  ))}
+                </optgroup>
               </select>
             </label>
           </section>
