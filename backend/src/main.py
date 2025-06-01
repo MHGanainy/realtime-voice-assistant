@@ -1,7 +1,7 @@
 # backend/src/main.py
 """
 Pipecat voice assistant with FastAPI and session management
-Now with DeepInfra Llama support
+Now with DeepInfra Llama support and many more models
 """
 import asyncio
 import os
@@ -191,24 +191,13 @@ def create_llm_service(model_name: str, service_name: str):
     if service_name == "openai":
         return OpenAILLMService(api_key=OPENAI_API_KEY, model=model_name)
     elif service_name == "deepinfra":
-        # Map model names to DeepInfra model IDs
-        deepinfra_models = {
-            "llama-3.1-70b": "meta-llama/Meta-Llama-3.1-70B-Instruct",
-            "llama-3.1-8b": "meta-llama/Meta-Llama-3.1-8B-Instruct",
-            "llama-3.2-3b": "meta-llama/Llama-3.2-3B-Instruct",
-            "llama-3.2-1b": "meta-llama/Llama-3.2-1B-Instruct",
-            "mixtral-8x7b": "mistralai/Mixtral-8x7B-Instruct-v0.1",
-            "qwen-2.5-72b": "Qwen/Qwen2.5-72B-Instruct"
-        }
-        
-        model_id = deepinfra_models.get(model_name, model_name)
-        
+        # For DeepInfra, we use the model name directly as it's already in the correct format
         if not DEEPINFRA_API_KEY:
             raise ValueError("DEEPINFRA_API_KEY not set in environment variables")
             
         return DeepInfraLLMService(
             api_key=DEEPINFRA_API_KEY,
-            model=model_id
+            model=model_name
         )
     else:
         raise ValueError(f"Unknown LLM service: {service_name}")
@@ -377,6 +366,9 @@ class SessionMetricsHandler:
         
     def handle(self, message):
         try:
+            metrics = self.session_data["latency_metrics"]
+            
+            # Handle TTFB metrics
             if "Service#" in message and "TTFB:" in message:
                 match = re.search(r'(\w+Service)#\d+ TTFB: ([\d.]+)', message)
                 if match:
@@ -384,16 +376,12 @@ class SessionMetricsHandler:
                     ttfb_value = float(match.group(2))
                     ttfb_ms = int(ttfb_value * 1000)
                     
-                    metrics = self.session_data["latency_metrics"]
-                    
                     if "STTService" in service_type:
                         metrics["stt"] = ttfb_ms
-                    elif "LLMService" in service_type:
-                        metrics["llm"] = ttfb_ms
                     elif "TTSService" in service_type:
                         metrics["tts"] = ttfb_ms
                         
-                        # Calculate total
+                        # Calculate total and send update when TTS starts
                         if metrics["interaction_start"]:
                             total_time = int((time.time() - metrics["interaction_start"]) * 1000)
                             metrics["total"] = total_time
@@ -409,6 +397,15 @@ class SessionMetricsHandler:
                             }))
                             
                             metrics["interaction_start"] = None
+            
+            # Handle processing time metrics - use this for LLM
+            elif "Service#" in message and "processing time:" in message:
+                match = re.search(r'(\w+LLMService)#\d+ processing time: ([\d.]+)', message)
+                if match:
+                    processing_time = float(match.group(2))
+                    processing_ms = int(processing_time * 1000)
+                    metrics["llm"] = processing_ms
+                    
         except Exception as e:
             logger.error(f"Error in metrics handler: {e}")
 
@@ -552,23 +549,13 @@ async def websocket_data_endpoint(websocket: WebSocket):
                     "service": service
                 })
                 
-                # Create friendly name for notification
-                model_names = {
-                    "gpt-3.5-turbo": "GPT-3.5 Turbo",
-                    "gpt-4o-mini": "GPT-4o Mini",
-                    "llama-3.1-70b": "Llama 3.1 70B",
-                    "llama-3.1-8b": "Llama 3.1 8B",
-                    "llama-3.2-3b": "Llama 3.2 3B",
-                    "llama-3.2-1b": "Llama 3.2 1B",
-                    "mixtral-8x7b": "Mixtral 8x7B",
-                    "qwen-2.5-72b": "Qwen 2.5 72B"
-                }
-                model_name = model_names.get(model, model)
+                # For notification, extract a friendly name if possible
+                model_display = model.split("/")[-1] if "/" in model else model
                 service_name = "DeepInfra" if service == "deepinfra" else "OpenAI"
                 
                 await broadcast_to_session(session_id, {
                     "type": "notification",
-                    "message": f"LLM changed to {model_name} ({service_name}). This will take effect on the next recording."
+                    "message": f"LLM changed to {model_display} ({service_name}). This will take effect on the next recording."
                 })
             
             elif data.get("type") == "change_tts_service":
@@ -708,53 +695,207 @@ async def get_available_models():
     """Get list of available models"""
     return {
         "models": [
+            # OpenAI Models
             {
                 "id": "gpt-3.5-turbo",
                 "name": "GPT-3.5 Turbo",
                 "service": "openai",
+                "category": "OpenAI",
                 "description": "Fast and efficient for most tasks"
             },
             {
                 "id": "gpt-4o-mini",
                 "name": "GPT-4o Mini",
                 "service": "openai",
+                "category": "OpenAI",
                 "description": "More capable than GPT-3.5"
             },
+            
+            # Meta Llama Models
             {
-                "id": "llama-3.1-70b",
-                "name": "Llama 3.1 70B",
+                "id": "meta-llama/Meta-Llama-3.3-70B-Instruct",
+                "name": "Llama 3.3 70B",
                 "service": "deepinfra",
-                "description": "Large open-source model with strong capabilities"
+                "category": "Meta Llama",
+                "description": "Latest Llama model with 128k context"
             },
             {
-                "id": "llama-3.1-8b",
+                "id": "meta-llama/Meta-Llama-3.1-405B-Instruct",
+                "name": "Llama 3.1 405B",
+                "service": "deepinfra",
+                "category": "Meta Llama",
+                "description": "Largest Llama model, exceptional capabilities"
+            },
+            {
+                "id": "meta-llama/Meta-Llama-3.1-70B-Instruct",
+                "name": "Llama 3.1 70B",
+                "service": "deepinfra",
+                "category": "Meta Llama",
+                "description": "Large model with strong capabilities"
+            },
+            {
+                "id": "meta-llama/Meta-Llama-3.1-8B-Instruct",
                 "name": "Llama 3.1 8B",
                 "service": "deepinfra",
+                "category": "Meta Llama",
                 "description": "Smaller, faster Llama model"
             },
             {
-                "id": "llama-3.2-3b",
+                "id": "meta-llama/Llama-3.2-11B-Vision-Instruct",
+                "name": "Llama 3.2 11B Vision",
+                "service": "deepinfra",
+                "category": "Meta Llama",
+                "description": "Multimodal model with vision capabilities"
+            },
+            {
+                "id": "meta-llama/Llama-3.2-3B-Instruct",
                 "name": "Llama 3.2 3B",
                 "service": "deepinfra",
+                "category": "Meta Llama",
                 "description": "Lightweight model for quick responses"
             },
             {
-                "id": "llama-3.2-1b",
+                "id": "meta-llama/Llama-3.2-1B-Instruct",
                 "name": "Llama 3.2 1B",
                 "service": "deepinfra",
+                "category": "Meta Llama",
                 "description": "Ultra-fast model for simple tasks"
             },
+            
+            # DeepSeek Models
             {
-                "id": "mixtral-8x7b",
+                "id": "deepseek-ai/DeepSeek-V3",
+                "name": "DeepSeek V3",
+                "service": "deepinfra",
+                "category": "DeepSeek",
+                "description": "671B MoE model with 37B active params"
+            },
+            {
+                "id": "deepseek-ai/DeepSeek-R1",
+                "name": "DeepSeek R1",
+                "service": "deepinfra",
+                "category": "DeepSeek",
+                "description": "Reasoning model comparable to OpenAI o1"
+            },
+            {
+                "id": "deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+                "name": "DeepSeek R1 Distill 70B",
+                "service": "deepinfra",
+                "category": "DeepSeek",
+                "description": "Distilled reasoning patterns in smaller model"
+            },
+            
+            # Qwen Models
+            {
+                "id": "Qwen/QwQ-32B",
+                "name": "QwQ 32B",
+                "service": "deepinfra",
+                "category": "Qwen",
+                "description": "Reasoning model from Qwen series"
+            },
+            {
+                "id": "Qwen/Qwen2.5-72B-Instruct",
+                "name": "Qwen 2.5 72B",
+                "service": "deepinfra",
+                "category": "Qwen",
+                "description": "Large multilingual model"
+            },
+            {
+                "id": "Qwen/Qwen2.5-7B-Instruct",
+                "name": "Qwen 2.5 7B",
+                "service": "deepinfra",
+                "category": "Qwen",
+                "description": "Efficient multilingual model"
+            },
+            {
+                "id": "Qwen/Qwen2.5-Coder-32B-Instruct",
+                "name": "Qwen 2.5 Coder 32B",
+                "service": "deepinfra",
+                "category": "Qwen",
+                "description": "Specialized for code generation"
+            },
+            
+            # Google Models
+            {
+                "id": "google/gemma-3-27b-it",
+                "name": "Gemma 3 27B",
+                "service": "deepinfra",
+                "category": "Google",
+                "description": "Google's multimodal open source model"
+            },
+            {
+                "id": "google/gemma-3-12b-it",
+                "name": "Gemma 3 12B",
+                "service": "deepinfra",
+                "category": "Google",
+                "description": "Multimodal model with function calling"
+            },
+            {
+                "id": "google/gemma-3-4b-it",
+                "name": "Gemma 3 4B",
+                "service": "deepinfra",
+                "category": "Google",
+                "description": "Lightweight multimodal model"
+            },
+            {
+                "id": "google/gemini-2.0-flash-001",
+                "name": "Gemini 2.0 Flash",
+                "service": "deepinfra",
+                "category": "Google",
+                "description": "Latest Gemini model for fast inference"
+            },
+            
+            # Microsoft Models
+            {
+                "id": "microsoft/phi-4",
+                "name": "Phi 4",
+                "service": "deepinfra",
+                "category": "Microsoft",
+                "description": "Small model with advanced reasoning"
+            },
+            {
+                "id": "microsoft/phi-4-reasoning-plus",
+                "name": "Phi 4 Reasoning Plus",
+                "service": "deepinfra",
+                "category": "Microsoft",
+                "description": "Enhanced reasoning capabilities"
+            },
+            {
+                "id": "microsoft/WizardLM-2-8x22B",
+                "name": "WizardLM 2 8x22B",
+                "service": "deepinfra",
+                "category": "Microsoft",
+                "description": "Advanced Wizard model with MoE"
+            },
+            
+            # Mistral Models
+            {
+                "id": "mistralai/Mixtral-8x7B-Instruct-v0.1",
                 "name": "Mixtral 8x7B",
                 "service": "deepinfra",
+                "category": "Mistral",
                 "description": "MoE model with excellent performance"
             },
             {
-                "id": "qwen-2.5-72b",
-                "name": "Qwen 2.5 72B",
+                "id": "mistralai/Mixtral-8x22B-Instruct-v0.1",
+                "name": "Mixtral 8x22B",
                 "service": "deepinfra",
-                "description": "Large multilingual model"
+                "category": "Mistral",
+                "description": "Large MoE model"
+            },
+            {
+                "id": "mistralai/Mistral-7B-Instruct-v0.3",
+                "name": "Mistral 7B v0.3",
+                "service": "deepinfra",
+                "category": "Mistral",
+                "description": "Latest Mistral 7B with function calling"
+            },
+            {
+                "id": "mistralai/Mistral-Nemo-Instruct-2407",
+                "name": "Mistral Nemo 12B",
+                "service": "deepinfra",
+                "category": "Mistral",
+                "description": "12B model by Mistral & NVIDIA"
             }
         ]
     }
@@ -762,7 +903,7 @@ async def get_available_models():
 
 if __name__ == "__main__":
     logger.info("Starting FastAPI Voice Assistant with Session Support")
-    logger.info("Now with DeepInfra Llama support!")
+    logger.info("Now with DeepInfra support for many models!")
     logger.info("Data WebSocket: ws://localhost:8000/ws/data")
     logger.info("Audio WebSocket: ws://localhost:8000/ws/audio")
     
