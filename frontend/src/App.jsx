@@ -64,10 +64,28 @@ export default function App() {
   const NUM_CHANNELS = 1;
   const PLAY_TIME_RESET_THRESHOLD_MS = 1.0;
   
-  // FastAPI WebSocket URLs
-  const WS_BASE_URL = 'ws://localhost:8000';
+  // WebSocket URLs - use environment variable or default to localhost
+  const getWebSocketBaseUrl = () => {
+    const envUrl = import.meta.env.VITE_WS_URL;
+    if (envUrl) {
+      // Remove any trailing /ws or / from the environment URL
+      return envUrl.replace(/\/ws\/?$/, '').replace(/\/$/, '');
+    }
+    // Default to localhost for development
+    return 'ws://localhost:8000';
+  };
+
+  const WS_BASE_URL = getWebSocketBaseUrl();
   const DATA_WS_URL = `${WS_BASE_URL}/ws/data?session=${sessionId}`;
   const AUDIO_WS_URL = `${WS_BASE_URL}/ws/audio?session=${sessionId}`;
+  
+  // Log URLs for debugging
+  console.log('WebSocket Configuration:', {
+    BASE_URL: WS_BASE_URL,
+    DATA_URL: DATA_WS_URL,
+    AUDIO_URL: AUDIO_WS_URL,
+    ENV_URL: import.meta.env.VITE_WS_URL
+  });
 
   // ---------------------------------------------------------------------------
   // Effect: Load protobuf schema once -----------------------------------------
@@ -262,6 +280,7 @@ export default function App() {
     if (dataWsRef.current?.readyState === WebSocket.CONNECTING) return;
 
     try {
+      addLog('info', `Connecting to Data WebSocket: ${DATA_WS_URL}`);
       const ws = new WebSocket(DATA_WS_URL);
       dataWsRef.current = ws;
 
@@ -277,22 +296,23 @@ export default function App() {
 
       ws.onerror = (e) => {
         console.error('Data WS error', e);
-        addLog('error', 'Data WebSocket connection error - check backend');
-        setNotification('Cannot connect to backend. Please ensure it is running on port 8000.');
+        addLog('error', `Data WebSocket connection error - ${e.type || 'Unknown error'}`);
+        setNotification('Cannot connect to backend. Please check if the backend URL is correct.');
       };
 
       ws.onclose = (ev) => {
-        addLog('warning', `Data WebSocket closed (code ${ev.code})`);
+        addLog('warning', `Data WebSocket closed (code ${ev.code}, reason: ${ev.reason || 'No reason provided'})`);
         setIsDataConnected(false);
         dataWsRef.current = null;
         
-        // Reconnect with exponential backoff
-        if (!reconnectTimeoutRef.current) {
+        // Only reconnect if it wasn't a normal closure
+        if (ev.code !== 1000 && !reconnectTimeoutRef.current) {
+          const delay = 3000;
           reconnectTimeoutRef.current = setTimeout(() => {
             reconnectTimeoutRef.current = null;
             addLog('info', 'Attempting to reconnect data WebSocket…');
             connectDataWebSocket();
-          }, 3000);
+          }, delay);
         }
       };
 
@@ -410,11 +430,10 @@ export default function App() {
         connectDataWebSocket();
       }
 
+      addLog('info', `Connecting to Audio WebSocket: ${AUDIO_WS_URL}`);
       const ws = new WebSocket(AUDIO_WS_URL);
       ws.binaryType = 'arraybuffer';
       wsRef.current = ws;
-
-      addLog('info', 'Connecting to audio WebSocket…');
 
       ws.onopen = async () => {
         addLog('info', 'Audio WebSocket connected to FastAPI');
@@ -533,8 +552,11 @@ export default function App() {
   // ---------------------------------------------------------------------------
   const startNewSession = async () => {
     try {
+      // Get the base URL (http/https version for API calls)
+      const apiBaseUrl = WS_BASE_URL.replace('ws://', 'http://').replace('wss://', 'https://');
+      
       // Call the FastAPI endpoint to create a new session
-      const response = await fetch(`http://localhost:8000/api/session/new`);
+      const response = await fetch(`${apiBaseUrl}/api/session/new`);
       const data = await response.json();
       
       if (data.session_id) {
