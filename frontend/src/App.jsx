@@ -15,14 +15,46 @@ const getSessionId = () => {
 
 // Model definitions
 const AVAILABLE_MODELS = [
-  { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', service: 'openai', group: 'OpenAI' },
-  { id: 'gpt-4o-mini', name: 'GPT-4o Mini', service: 'openai', group: 'OpenAI' },
-  { id: 'llama-3.1-70b', name: 'Llama 3.1 70B', service: 'deepinfra', group: 'DeepInfra' },
-  { id: 'llama-3.1-8b', name: 'Llama 3.1 8B', service: 'deepinfra', group: 'DeepInfra' },
-  { id: 'llama-3.2-3b', name: 'Llama 3.2 3B', service: 'deepinfra', group: 'DeepInfra' },
-  { id: 'llama-3.2-1b', name: 'Llama 3.2 1B', service: 'deepinfra', group: 'DeepInfra' },
-  { id: 'mixtral-8x7b', name: 'Mixtral 8x7B', service: 'deepinfra', group: 'DeepInfra' },
-  { id: 'qwen-2.5-72b', name: 'Qwen 2.5 72B', service: 'deepinfra', group: 'DeepInfra' }
+  // OpenAI Models
+  { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', service: 'openai', category: 'OpenAI' },
+  { id: 'gpt-4o-mini', name: 'GPT-4o Mini', service: 'openai', category: 'OpenAI' },
+  
+  // Meta Llama Models
+  { id: 'meta-llama/Meta-Llama-3.3-70B-Instruct', name: 'Llama 3.3 70B', service: 'deepinfra', category: 'Meta Llama' },
+  { id: 'meta-llama/Meta-Llama-3.1-405B-Instruct', name: 'Llama 3.1 405B', service: 'deepinfra', category: 'Meta Llama' },
+  { id: 'meta-llama/Meta-Llama-3.1-70B-Instruct', name: 'Llama 3.1 70B', service: 'deepinfra', category: 'Meta Llama' },
+  { id: 'meta-llama/Meta-Llama-3.1-8B-Instruct', name: 'Llama 3.1 8B', service: 'deepinfra', category: 'Meta Llama' },
+  { id: 'meta-llama/Llama-3.2-11B-Vision-Instruct', name: 'Llama 3.2 11B Vision', service: 'deepinfra', category: 'Meta Llama' },
+  { id: 'meta-llama/Llama-3.2-3B-Instruct', name: 'Llama 3.2 3B', service: 'deepinfra', category: 'Meta Llama' },
+  { id: 'meta-llama/Llama-3.2-1B-Instruct', name: 'Llama 3.2 1B', service: 'deepinfra', category: 'Meta Llama' },
+  
+  // DeepSeek Models
+  { id: 'deepseek-ai/DeepSeek-V3', name: 'DeepSeek V3', service: 'deepinfra', category: 'DeepSeek' },
+  { id: 'deepseek-ai/DeepSeek-R1', name: 'DeepSeek R1', service: 'deepinfra', category: 'DeepSeek' },
+  { id: 'deepseek-ai/DeepSeek-R1-Distill-Llama-70B', name: 'DeepSeek R1 Distill 70B', service: 'deepinfra', category: 'DeepSeek' },
+  
+  // Qwen Models
+  { id: 'Qwen/QwQ-32B', name: 'QwQ 32B', service: 'deepinfra', category: 'Qwen' },
+  { id: 'Qwen/Qwen2.5-72B-Instruct', name: 'Qwen 2.5 72B', service: 'deepinfra', category: 'Qwen' },
+  { id: 'Qwen/Qwen2.5-7B-Instruct', name: 'Qwen 2.5 7B', service: 'deepinfra', category: 'Qwen' },
+  { id: 'Qwen/Qwen2.5-Coder-32B-Instruct', name: 'Qwen 2.5 Coder 32B', service: 'deepinfra', category: 'Qwen' },
+  
+  // Google Models
+  { id: 'google/gemma-3-27b-it', name: 'Gemma 3 27B', service: 'deepinfra', category: 'Google' },
+  { id: 'google/gemma-3-12b-it', name: 'Gemma 3 12B', service: 'deepinfra', category: 'Google' },
+  { id: 'google/gemma-3-4b-it', name: 'Gemma 3 4B', service: 'deepinfra', category: 'Google' },
+  { id: 'google/gemini-2.0-flash-001', name: 'Gemini 2.0 Flash', service: 'deepinfra', category: 'Google' },
+  
+  // Microsoft Models
+  { id: 'microsoft/phi-4', name: 'Phi 4', service: 'deepinfra', category: 'Microsoft' },
+  { id: 'microsoft/phi-4-reasoning-plus', name: 'Phi 4 Reasoning+', service: 'deepinfra', category: 'Microsoft' },
+  { id: 'microsoft/WizardLM-2-8x22B', name: 'WizardLM 2 8x22B', service: 'deepinfra', category: 'Microsoft' },
+  
+  // Mistral Models
+  { id: 'mistralai/Mixtral-8x7B-Instruct-v0.1', name: 'Mixtral 8x7B', service: 'deepinfra', category: 'Mistral' },
+  { id: 'mistralai/Mixtral-8x22B-Instruct-v0.1', name: 'Mixtral 8x22B', service: 'deepinfra', category: 'Mistral' },
+  { id: 'mistralai/Mistral-7B-Instruct-v0.3', name: 'Mistral 7B v0.3', service: 'deepinfra', category: 'Mistral' },
+  { id: 'mistralai/Mistral-Nemo-Instruct-2407', name: 'Mistral Nemo 12B', service: 'deepinfra', category: 'Mistral' }
 ];
 
 export default function App() {
@@ -718,15 +750,40 @@ export default function App() {
                 value={llmModel}
                 onChange={(e) => handleLlmModelChange(e.target.value)}
                 disabled={isRecording}
-                style={{ fontSize: '0.875rem' }}
+                style={{ fontSize: '0.75rem', padding: '0.5rem' }}
               >
-                <optgroup label="OpenAI Models">
-                  {AVAILABLE_MODELS.filter(m => m.service === 'openai').map(model => (
+                <optgroup label="OpenAI">
+                  {AVAILABLE_MODELS.filter(m => m.category === 'OpenAI').map(model => (
                     <option key={model.id} value={model.id}>{model.name}</option>
                   ))}
                 </optgroup>
-                <optgroup label="DeepInfra Models">
-                  {AVAILABLE_MODELS.filter(m => m.service === 'deepinfra').map(model => (
+                <optgroup label="Meta Llama">
+                  {AVAILABLE_MODELS.filter(m => m.category === 'Meta Llama').map(model => (
+                    <option key={model.id} value={model.id}>{model.name}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="DeepSeek">
+                  {AVAILABLE_MODELS.filter(m => m.category === 'DeepSeek').map(model => (
+                    <option key={model.id} value={model.id}>{model.name}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Qwen">
+                  {AVAILABLE_MODELS.filter(m => m.category === 'Qwen').map(model => (
+                    <option key={model.id} value={model.id}>{model.name}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Google">
+                  {AVAILABLE_MODELS.filter(m => m.category === 'Google').map(model => (
+                    <option key={model.id} value={model.id}>{model.name}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Microsoft">
+                  {AVAILABLE_MODELS.filter(m => m.category === 'Microsoft').map(model => (
+                    <option key={model.id} value={model.id}>{model.name}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Mistral">
+                  {AVAILABLE_MODELS.filter(m => m.category === 'Mistral').map(model => (
                     <option key={model.id} value={model.id}>{model.name}</option>
                   ))}
                 </optgroup>
