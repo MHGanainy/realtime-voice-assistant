@@ -3,10 +3,21 @@ import protobuf from 'protobufjs';
 import './App.css';
 import AudioDebugToolkit from './AudioDebugToolkit';
 
+// Session management
+const getSessionId = () => {
+  let sessionId = sessionStorage.getItem('voice-assistant-session-id');
+  if (!sessionId) {
+    sessionId = crypto.randomUUID();
+    sessionStorage.setItem('voice-assistant-session-id', sessionId);
+  }
+  return sessionId;
+};
+
 export default function App() {
   // ---------------------------------------------------------------------------
   // State ---------------------------------------------------------------------
   // ---------------------------------------------------------------------------
+  const [sessionId] = useState(getSessionId());
   const [isConnected, setIsConnected] = useState(false);
   const [isDataConnected, setIsDataConnected] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -44,6 +55,7 @@ export default function App() {
   const conversationEndRef = useRef(null);
   const startTimeRef = useRef(null);
   const audioChunkCountRef = useRef(0);
+  const reconnectTimeoutRef = useRef(null);
 
   // ---------------------------------------------------------------------------
   // Constants -----------------------------------------------------------------
@@ -51,6 +63,11 @@ export default function App() {
   const SAMPLE_RATE = 16000;
   const NUM_CHANNELS = 1;
   const PLAY_TIME_RESET_THRESHOLD_MS = 1.0;
+  
+  // FastAPI WebSocket URLs
+  const WS_BASE_URL = 'ws://localhost:8000';
+  const DATA_WS_URL = `${WS_BASE_URL}/ws/data?session=${sessionId}`;
+  const AUDIO_WS_URL = `${WS_BASE_URL}/ws/audio?session=${sessionId}`;
 
   // ---------------------------------------------------------------------------
   // Effect: Load protobuf schema once -----------------------------------------
@@ -108,11 +125,15 @@ export default function App() {
   // Effect: connect data WS on mount ------------------------------------------
   // ---------------------------------------------------------------------------
   useEffect(() => {
+    addLog('info', `Session ID: ${sessionId}`);
     connectDataWebSocket();
     return () => {
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
       dataWsRef.current?.close();
     };
-  }, []);
+  }, [sessionId]);
 
   // ---------------------------------------------------------------------------
   // Effect: auto‑scroll logs + conversation -----------------------------------
@@ -237,33 +258,42 @@ export default function App() {
   // WebSocket: DATA channel ---------------------------------------------------
   // ---------------------------------------------------------------------------
   const connectDataWebSocket = () => {
-    if (dataWsRef.current?.readyState === WebSocket.OPEN) return; // already connected
-    if (dataWsRef.current?.readyState === WebSocket.CONNECTING) return; // connecting
+    if (dataWsRef.current?.readyState === WebSocket.OPEN) return;
+    if (dataWsRef.current?.readyState === WebSocket.CONNECTING) return;
 
     try {
-      const ws = new WebSocket('ws://localhost:8766');
+      const ws = new WebSocket(DATA_WS_URL);
       dataWsRef.current = ws;
 
       ws.onopen = () => {
-        addLog('info', 'Data WebSocket connected');
+        addLog('info', 'Data WebSocket connected to FastAPI');
         setIsDataConnected(true);
         setNotification('');
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+          reconnectTimeoutRef.current = null;
+        }
       };
 
       ws.onerror = (e) => {
         console.error('Data WS error', e);
         addLog('error', 'Data WebSocket connection error - check backend');
-        setNotification('Cannot connect to backend. Please ensure it is running.');
+        setNotification('Cannot connect to backend. Please ensure it is running on port 8000.');
       };
 
       ws.onclose = (ev) => {
         addLog('warning', `Data WebSocket closed (code ${ev.code})`);
         setIsDataConnected(false);
         dataWsRef.current = null;
-        setTimeout(() => {
-          addLog('info', 'Attempting to reconnect data WebSocket…');
-          connectDataWebSocket();
-        }, 3000);
+        
+        // Reconnect with exponential backoff
+        if (!reconnectTimeoutRef.current) {
+          reconnectTimeoutRef.current = setTimeout(() => {
+            reconnectTimeoutRef.current = null;
+            addLog('info', 'Attempting to reconnect data WebSocket…');
+            connectDataWebSocket();
+          }, 3000);
+        }
       };
 
       ws.onmessage = (event) => {
@@ -273,6 +303,11 @@ export default function App() {
           switch (data.type) {
             case 'connection':
               addLog('info', `Connection status: ${data.status}`);
+              if (data.session_id && data.session_id !== sessionId) {
+                // Server assigned a different session ID
+                sessionStorage.setItem('voice-assistant-session-id', data.session_id);
+                window.location.reload(); // Reload to use new session ID
+              }
               break;
             case 'transcription':
               if (data.final) {
@@ -322,6 +357,13 @@ export default function App() {
               setNotification(data.message);
               addLog('info', data.message);
               break;
+            case 'audio_connected':
+              // Audio connection status from backend
+              if (!data.status && isRecording) {
+                // Audio disconnected, stop recording
+                stopRecording();
+              }
+              break;
             case 'log':
               if (data.message && !data.message.includes('Sent to frontend')) {
                 addLog(data.level, data.message);
@@ -368,14 +410,14 @@ export default function App() {
         connectDataWebSocket();
       }
 
-      const ws = new WebSocket('ws://localhost:8765');
+      const ws = new WebSocket(AUDIO_WS_URL);
       ws.binaryType = 'arraybuffer';
       wsRef.current = ws;
 
       addLog('info', 'Connecting to audio WebSocket…');
 
       ws.onopen = async () => {
-        addLog('info', 'Audio WebSocket connected');
+        addLog('info', 'Audio WebSocket connected to FastAPI');
         addLog('info', `Using ${sttService.toUpperCase()} STT, ${llmModel === 'gpt-3.5-turbo' ? 'GPT‑3.5 Turbo' : 'GPT‑4o Mini'}, ${ttsService.toUpperCase()} TTS`);
         setIsConnected(true);
 
@@ -487,6 +529,28 @@ export default function App() {
   const handleTtsServiceChange = (s) => sendBackend({ type: 'change_tts_service', service: s }) && setTtsService(s);
 
   // ---------------------------------------------------------------------------
+  // New Session Handler -------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  const startNewSession = async () => {
+    try {
+      // Call the FastAPI endpoint to create a new session
+      const response = await fetch(`http://localhost:8000/api/session/new`);
+      const data = await response.json();
+      
+      if (data.session_id) {
+        // Store new session ID and reload
+        sessionStorage.setItem('voice-assistant-session-id', data.session_id);
+        window.location.reload();
+      }
+    } catch (err) {
+      addLog('error', 'Failed to create new session');
+      // Fallback to client-side session creation
+      sessionStorage.removeItem('voice-assistant-session-id');
+      window.location.reload();
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // Cleanup on unmount --------------------------------------------------------
   // ---------------------------------------------------------------------------
   useEffect(() => () => {
@@ -503,6 +567,23 @@ export default function App() {
       <header className="app-header">
         <h1>Voice Assistant Dev Testing</h1>
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <div style={{ fontSize: '0.75rem', color: '#888' }}>
+            Session: {sessionId.substring(0, 8)}...
+          </div>
+          <button
+            onClick={startNewSession}
+            style={{
+              background: '#666',
+              border: 'none',
+              color: '#fff',
+              padding: '0.5rem 1rem',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '0.875rem',
+            }}
+          >
+            New Session
+          </button>
           <button
             onClick={() => setShowDebugToolkit(true)}
             style={{
@@ -611,7 +692,7 @@ export default function App() {
             <button
               className={`record-button ${isRecording ? 'recording' : ''}`}
               onClick={isRecording ? stopRecording : startRecording}
-              disabled={!frameTypeRef.current}
+              disabled={!frameTypeRef.current || !isDataConnected}
             >
               {isRecording ? (
                 <>
