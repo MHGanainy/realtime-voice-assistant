@@ -2,6 +2,7 @@
 """
 Pipecat voice assistant with FastAPI and session management
 Now with DeepInfra Llama support and many more models
+Enhanced with sentence chunking and performance optimizations
 """
 import asyncio
 import os
@@ -30,6 +31,9 @@ load_dotenv(env_path)
 # Import the DeepInfra service (assuming it's in a services folder)
 # You'll need to place the deepinfra_llm.py file in your project
 from services.deepinfra_llm import DeepInfraLLMService
+
+# Import sentence chunker for performance optimization
+from services.sentence_chunker import SentenceChunker
 
 # Pipecat imports
 from pipecat.audio.vad.silero import SileroVADAnalyzer
@@ -71,6 +75,13 @@ DEEPINFRA_API_KEY = os.getenv("DEEPINFRA_API_KEY")  # Add this to your .env file
 
 if not all([OPENAI_API_KEY, ELEVEN_API_KEY, DEEPGRAM_API_KEY]):
     raise ValueError("Missing required API keys. Please set OPENAI_API_KEY, ELEVEN_API_KEY, and DEEPGRAM_API_KEY")
+
+# TTS Service Sample Rates
+TTS_SAMPLE_RATES = {
+    "elevenlabs": 24000,
+    "deepgram": 16000,
+    "openai": 24000
+}
 
 # Global pipeline runner - will be initialized when the app starts
 pipeline_runner = None
@@ -141,14 +152,19 @@ def get_session_data(session_id: str) -> Dict[str, Any]:
                 "stt_service": "openai",
                 "llm_model": "gpt-3.5-turbo",
                 "llm_service": "openai",  # New setting to track which LLM service
-                "tts_service": "elevenlabs"
+                "tts_service": "elevenlabs",
+                "tts_sample_rate": TTS_SAMPLE_RATES["elevenlabs"],  # Add sample rate tracking
+                "vad_mode": 2,  # 0-3, client-side VAD aggressiveness
+                "vad_enabled": True,
+                "sentence_chunking": True  # Enable sentence chunking by default
             },
             "latency_metrics": {
                 "stt": 0,
                 "llm": 0,
                 "tts": 0,
                 "total": 0,
-                "interaction_start": None
+                "interaction_start": None,
+                "first_chunk_time": None
             },
             "created_at": datetime.now().isoformat(),
             "pipeline_task": None,
@@ -371,6 +387,7 @@ class SessionMetricsHandler:
     def __init__(self, session_id: str, session_data: Dict[str, Any]):
         self.session_id = session_id
         self.session_data = session_data
+        self.first_chunk_time = None
         
     def handle(self, message):
         try:
@@ -389,6 +406,17 @@ class SessionMetricsHandler:
                     elif "TTSService" in service_type:
                         metrics["tts"] = ttfb_ms
                         
+                        # Track first chunk timing for sentence chunking metrics
+                        if not self.first_chunk_time and metrics["interaction_start"]:
+                            self.first_chunk_time = time.time()
+                            time_to_first_audio = int((self.first_chunk_time - metrics["interaction_start"]) * 1000)
+                            
+                            asyncio.create_task(broadcast_to_session(self.session_id, {
+                                "type": "metric",
+                                "metric": "time_to_first_audio",
+                                "value": time_to_first_audio
+                            }))
+                        
                         # Calculate total and send update when TTS starts
                         if metrics["interaction_start"]:
                             total_time = int((time.time() - metrics["interaction_start"]) * 1000)
@@ -404,7 +432,10 @@ class SessionMetricsHandler:
                                 }
                             }))
                             
-                            metrics["interaction_start"] = None
+                            # Reset for next interaction
+                            if self.first_chunk_time:
+                                metrics["interaction_start"] = None
+                                self.first_chunk_time = None
             
             # Handle processing time metrics - use this for LLM
             elif "Service#" in message and "processing time:" in message:
@@ -481,6 +512,19 @@ async def websocket_data_endpoint(websocket: WebSocket):
         await websocket.send_json({
             "type": "tts_service",
             "service": session_data["settings"]["tts_service"]
+        })
+        
+        # Send TTS sample rate
+        await websocket.send_json({
+            "type": "tts_sample_rate",
+            "sample_rate": session_data["settings"]["tts_sample_rate"]
+        })
+        
+        # Send VAD settings
+        await websocket.send_json({
+            "type": "vad_settings",
+            "enabled": session_data["settings"]["vad_enabled"],
+            "mode": session_data["settings"]["vad_mode"]
         })
         
         # Handle incoming messages
@@ -570,14 +614,33 @@ async def websocket_data_endpoint(websocket: WebSocket):
                 service = data.get("service", "elevenlabs")
                 if service in ["elevenlabs", "deepgram", "openai"]:
                     session_data["settings"]["tts_service"] = service
+                    # Update the sample rate based on the TTS service
+                    session_data["settings"]["tts_sample_rate"] = TTS_SAMPLE_RATES.get(service, 24000)
+                    
                     await broadcast_to_session(session_id, {
                         "type": "tts_service",
                         "service": service
                     })
                     await broadcast_to_session(session_id, {
+                        "type": "tts_sample_rate",
+                        "sample_rate": session_data["settings"]["tts_sample_rate"]
+                    })
+                    await broadcast_to_session(session_id, {
                         "type": "notification",
                         "message": f"TTS service changed to {service.title()}. This will take effect on the next recording."
                     })
+            
+            elif data.get("type") == "change_vad_settings":
+                vad_enabled = data.get("enabled", True)
+                vad_mode = data.get("mode", 2)
+                session_data["settings"]["vad_enabled"] = vad_enabled
+                session_data["settings"]["vad_mode"] = vad_mode
+                await broadcast_to_session(session_id, {
+                    "type": "vad_settings",
+                    "enabled": vad_enabled,
+                    "mode": vad_mode
+                })
+                logger.info(f"Session {session_id}: VAD settings updated - enabled: {vad_enabled}, mode: {vad_mode}")
                     
     except WebSocketDisconnect:
         logger.info(f"Data client disconnected from session {session_id}")
@@ -605,7 +668,14 @@ async def websocket_audio_endpoint(websocket: WebSocket):
     logger.info(f"Audio client connected to session {session_id}")
     
     try:
-        # Create transport
+        # Get the current sample rate based on TTS service
+        output_sample_rate = session_data["settings"]["tts_sample_rate"]
+        
+        # Log VAD settings
+        vad_settings = session_data["settings"]
+        logger.info(f"Session {session_id}: VAD enabled: {vad_settings['vad_enabled']}, mode: {vad_settings['vad_mode']}")
+        
+        # Create transport with dynamic sample rate
         transport = FastAPIWebsocketTransport(
             websocket=websocket,
             params=FastAPIWebsocketParams(
@@ -627,7 +697,7 @@ async def websocket_audio_endpoint(websocket: WebSocket):
         
         logger.info(f"Session {session_id}: Using {session_data['settings']['stt_service']} STT, "
                    f"{session_data['settings']['llm_model']} LLM ({session_data['settings']['llm_service']}), "
-                   f"{session_data['settings']['tts_service']} TTS")
+                   f"{session_data['settings']['tts_service']} TTS (Sample rate: {output_sample_rate}Hz)")
         
         # Create context
         session_data["context"] = OpenAILLMContext([{
@@ -645,25 +715,42 @@ async def websocket_audio_endpoint(websocket: WebSocket):
             "stt": 0, "llm": 0, "tts": 0, "total": 0, "interaction_start": None
         }
         
-        # Create pipeline
-        pipeline = Pipeline([
+        # Build pipeline components
+        pipeline_components = [
             transport.input(),
             stt,
             SessionTranscriptionCapture(session_id, session_data),
             session_data["context_aggregator"].user(),
             llm,
+        ]
+        
+        # Add sentence chunking if enabled
+        if session_data["settings"].get("sentence_chunking", True):
+            sentence_chunker = SentenceChunker(
+                min_sentence_length=10,
+                max_buffer_size=500,
+                timeout_ms=500
+            )
+            pipeline_components.append(sentence_chunker)
+            logger.info(f"Session {session_id}: Sentence chunking enabled")
+        
+        # Continue with rest of pipeline
+        pipeline_components.extend([
             SessionAssistantResponseCapture(session_id, session_data),
             tts,
             transport.output(),
             session_data["context_aggregator"].assistant(),
         ])
         
-        # Create and run task
+        # Create pipeline
+        pipeline = Pipeline(pipeline_components)
+        
+        # Create and run task with dynamic output sample rate
         task = PipelineTask(
             pipeline,
             params=PipelineParams(
-                audio_in_sample_rate=16000,
-                audio_out_sample_rate=16000,
+                audio_in_sample_rate=16000,  # Input always 16000 for microphone
+                audio_out_sample_rate=output_sample_rate,  # Dynamic based on TTS
                 allow_interruptions=True,
                 enable_metrics=True,
                 report_only_initial_ttfb=False,
@@ -912,6 +999,7 @@ async def get_available_models():
 if __name__ == "__main__":
     logger.info("Starting FastAPI Voice Assistant with Session Support")
     logger.info("Now with DeepInfra support for many models!")
+    logger.info("Enhanced with sentence chunking and performance optimizations")
     logger.info("Data WebSocket: ws://localhost:8000/ws/data")
     logger.info("Audio WebSocket: ws://localhost:8000/ws/audio")
     
