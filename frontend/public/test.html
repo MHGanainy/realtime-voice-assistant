@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Assistant Integration Tester</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-top: 0;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .metrics {
+            font-family: monospace;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .audio-visualizer {
+            width: 100%;
+            height: 100px;
+            background: #000;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        #log {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin: 2px 0;
+        }
+        .log-entry.error {
+            color: #dc3545;
+        }
+        .log-entry.success {
+            color: #28a745;
+        }
+        .log-entry.info {
+            color: #17a2b8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 Voice Assistant Integration Tester</h1>
+        
+        <div class="test-section">
+            <h3>Connection Test</h3>
+            <button id="connectBtn">Connect to Backend</button>
+            <button id="disconnectBtn" disabled>Disconnect</button>
+            <div id="connectionStatus" class="status info">Not connected</div>
+        </div>
+
+        <div class="test-section">
+            <h3>Audio Test</h3>
+            <button id="micTestBtn" disabled>Test Microphone</button>
+            <button id="echoTestBtn" disabled>Test Audio Echo</button>
+            <button id="toneTestBtn" disabled>Send Test Tone</button>
+            <canvas id="audioVisualizer" class="audio-visualizer"></canvas>
+            <div id="audioStatus" class="status info">Audio not initialized</div>
+        </div>
+
+        <div class="test-section">
+            <h3>Latency Test</h3>
+            <button id="latencyTestBtn" disabled>Run Latency Test</button>
+            <div class="metrics">
+                <div>Average Latency: <span id="avgLatency">-</span> ms</div>
+                <div>Min Latency: <span id="minLatency">-</span> ms</div>
+                <div>Max Latency: <span id="maxLatency">-</span> ms</div>
+                <div>Packet Loss: <span id="packetLoss">-</span> %</div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>Test Log</h3>
+            <div id="log"></div>
+        </div>
+    </div>
+
+    <script>
+        // Test configuration
+        const WS_URL = 'ws://localhost:8000/ws/room/test-integration';
+        const USER_ID = `tester-${Date.now()}`;
+        
+        // State
+        let socket = null;
+        let audioContext = null;
+        let microphone = null;
+        let analyser = null;
+        let isConnected = false;
+        let latencyMeasurements = [];
+        
+        // UI Elements
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const micTestBtn = document.getElementById('micTestBtn');
+        const echoTestBtn = document.getElementById('echoTestBtn');
+        const toneTestBtn = document.getElementById('toneTestBtn');
+        const latencyTestBtn = document.getElementById('latencyTestBtn');
+        const audioStatus = document.getElementById('audioStatus');
+        const logDiv = document.getElementById('log');
+        const canvas = document.getElementById('audioVisualizer');
+        const canvasCtx = canvas.getContext('2d');
+        
+        // Logging
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${timestamp}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        // WebSocket Connection
+        async function connect() {
+            try {
+                log('Connecting to backend...');
+                socket = new WebSocket(WS_URL);
+                socket.binaryType = 'arraybuffer';
+                
+                socket.onopen = async () => {
+                    log('WebSocket connected', 'success');
+                    isConnected = true;
+                    
+                    // Send join message
+                    socket.send(JSON.stringify({
+                        type: 'join',
+                        userId: USER_ID
+                    }));
+                    
+                    // Update UI
+                    connectBtn.disabled = true;
+                    disconnectBtn.disabled = false;
+                    micTestBtn.disabled = false;
+                    echoTestBtn.disabled = false;
+                    toneTestBtn.disabled = false;
+                    latencyTestBtn.disabled = false;
+                    connectionStatus.className = 'status success';
+                    connectionStatus.textContent = `Connected as ${USER_ID}`;
+                };
+                
+                socket.onmessage = (event) => {
+                    if (typeof event.data === 'string') {
+                        const message = JSON.parse(event.data);
+                        handleMessage(message);
+                    } else {
+                        handleAudioData(event.data);
+                    }
+                };
+                
+                socket.onerror = (error) => {
+                    log(`WebSocket error: ${error}`, 'error');
+                };
+                
+                socket.onclose = () => {
+                    log('WebSocket disconnected');
+                    isConnected = false;
+                    resetUI();
+                };
+                
+            } catch (error) {
+                log(`Connection failed: ${error.message}`, 'error');
+                resetUI();
+            }
+        }
+        
+        function disconnect() {
+            if (socket) {
+                socket.close();
+                socket = null;
+            }
+            resetUI();
+        }
+        
+        function resetUI() {
+            connectBtn.disabled = false;
+            disconnectBtn.disabled = true;
+            micTestBtn.disabled = true;
+            echoTestBtn.disabled = true;
+            toneTestBtn.disabled = true;
+            latencyTestBtn.disabled = true;
+            connectionStatus.className = 'status info';
+            connectionStatus.textContent = 'Not connected';
+        }
+        
+        // Message Handlers
+        function handleMessage(message) {
+            log(`Received: ${message.type}`);
+            
+            switch (message.type) {
+                case 'joined':
+                    log(`Joined room with ${message.participants.length} participants`, 'success');
+                    break;
+                case 'pong':
+                    // Handle latency measurement
+                    const rtt = Date.now() - message.timestamp;
+                    latencyMeasurements.push(rtt);
+                    break;
+            }
+        }
+        
+        function handleAudioData(audioData) {
+            log(`Received audio: ${audioData.byteLength} bytes`);
+            // Play the audio if we have a context
+            if (audioContext && audioContext.state === 'running') {
+                playAudioData(audioData);
+            }
+        }
+        
+        // Audio Tests
+        async function initAudio() {
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                    sampleRate: 48000
+                });
+                
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                microphone = audioContext.createMediaStreamSource(stream);
+                
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 2048;
+                microphone.connect(analyser);
+                
+                audioStatus.className = 'status success';
+                audioStatus.textContent = 'Audio initialized';
+                log('Audio context initialized', 'success');
+                
+                // Start visualizer
+                drawVisualizer();
+                
+            } catch (error) {
+                audioStatus.className = 'status error';
+                audioStatus.textContent = `Audio error: ${error.message}`;
+                log(`Audio initialization failed: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testMicrophone() {
+            if (!audioContext) {
+                await initAudio();
+            }
+            
+            log('Testing microphone...');
+            // The visualizer will show if mic is working
+            audioStatus.textContent = 'Check visualizer for microphone input';
+        }
+        
+        async function testEcho() {
+            log('Sending silent audio chunk for echo test...');
+            
+            // Send 20ms of silence (960 samples * 2 bytes per sample)
+            const silentAudio = new ArrayBuffer(960 * 2);
+            socket.send(silentAudio);
+            
+            log('Silent audio sent, waiting for echo...');
+        }
+        
+        async function sendTestTone() {
+            log('Generating and sending test tone...');
+            
+            // Generate 20ms of 440Hz sine wave
+            const sampleRate = 48000;
+            const duration = 0.02; // 20ms
+            const frequency = 440;
+            const samples = sampleRate * duration;
+            
+            const buffer = new ArrayBuffer(samples * 2);
+            const view = new DataView(buffer);
+            
+            for (let i = 0; i < samples; i++) {
+                const t = i / sampleRate;
+                const value = Math.sin(2 * Math.PI * frequency * t);
+                const sample = Math.floor(value * 32767);
+                view.setInt16(i * 2, sample, true); // Little endian
+            }
+            
+            socket.send(buffer);
+            log('Test tone sent (440Hz, 20ms)');
+        }
+        
+        async function playAudioData(audioData) {
+            // Decode PCM data
+            const samples = new Int16Array(audioData);
+            const floatData = new Float32Array(samples.length);
+            
+            for (let i = 0; i < samples.length; i++) {
+                floatData[i] = samples[i] / 32768;
+            }
+            
+            // Create audio buffer
+            const audioBuffer = audioContext.createBuffer(1, floatData.length, 48000);
+            audioBuffer.copyToChannel(floatData, 0);
+            
+            // Play it
+            const source = audioContext.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(audioContext.destination);
+            source.start();
+        }
+        
+        // Latency Test
+        async function runLatencyTest() {
+            log('Starting latency test...');
+            latencyMeasurements = [];
+            
+            // Send 10 pings
+            for (let i = 0; i < 10; i++) {
+                socket.send(JSON.stringify({
+                    type: 'ping',
+                    timestamp: Date.now()
+                }));
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            // Wait a bit more for all responses
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Calculate stats
+            if (latencyMeasurements.length > 0) {
+                const avg = latencyMeasurements.reduce((a, b) => a + b) / latencyMeasurements.length;
+                const min = Math.min(...latencyMeasurements);
+                const max = Math.max(...latencyMeasurements);
+                const loss = ((10 - latencyMeasurements.length) / 10) * 100;
+                
+                document.getElementById('avgLatency').textContent = avg.toFixed(1);
+                document.getElementById('minLatency').textContent = min;
+                document.getElementById('maxLatency').textContent = max;
+                document.getElementById('packetLoss').textContent = loss.toFixed(1);
+                
+                log(`Latency test complete: avg=${avg.toFixed(1)}ms, loss=${loss}%`, 'success');
+            } else {
+                log('No responses received!', 'error');
+            }
+        }
+        
+        // Visualizer
+        function drawVisualizer() {
+            if (!analyser) return;
+            
+            requestAnimationFrame(drawVisualizer);
+            
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            analyser.getByteTimeDomainData(dataArray);
+            
+            canvasCtx.fillStyle = 'rgb(0, 0, 0)';
+            canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            canvasCtx.lineWidth = 2;
+            canvasCtx.strokeStyle = 'rgb(0, 255, 0)';
+            canvasCtx.beginPath();
+            
+            const sliceWidth = canvas.width / bufferLength;
+            let x = 0;
+            
+            for (let i = 0; i < bufferLength; i++) {
+                const v = dataArray[i] / 128.0;
+                const y = v * canvas.height / 2;
+                
+                if (i === 0) {
+                    canvasCtx.moveTo(x, y);
+                } else {
+                    canvasCtx.lineTo(x, y);
+                }
+                
+                x += sliceWidth;
+            }
+            
+            canvasCtx.lineTo(canvas.width, canvas.height / 2);
+            canvasCtx.stroke();
+        }
+        
+        // Event Listeners
+        connectBtn.addEventListener('click', connect);
+        disconnectBtn.addEventListener('click', disconnect);
+        micTestBtn.addEventListener('click', testMicrophone);
+        echoTestBtn.addEventListener('click', testEcho);
+        toneTestBtn.addEventListener('click', sendTestTone);
+        latencyTestBtn.addEventListener('click', runLatencyTest);
+        
+        // Set canvas size
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
+        
+        log('Integration tester ready');
+    </script>
+</body>
+</html>

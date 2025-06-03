@@ -1,0 +1,23 @@
+# Development Frontend Dockerfile
+FROM node:18-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Set environment variables
+ENV VITE_WS_URL=ws://localhost:8000
+
+# Expose Vite dev server port
+EXPOSE 5173
+
+# Volume for hot reloading
+VOLUME ["/app/src", "/app/public", "/app/index.html"]
+
+# Run development server
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

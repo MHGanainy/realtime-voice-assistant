@@ -1,0 +1,38 @@
+# Core Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+websockets==12.0
+python-multipart==0.0.6
+
+# Async Support
+aiofiles==23.2.1
+asyncio==3.4.3
+
+# Audio Processing
+opuslib==3.0.1
+numpy==1.26.2
+scipy==1.11.4
+
+# Environment & Config
+python-dotenv==1.0.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Logging & Monitoring
+structlog==23.2.0
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+httpx==0.25.2  # For TestClient
+
+# Development
+black==23.11.0
+flake8==6.1.0
+mypy==1.7.1
+
+# Production optimizations (uncomment as needed)
+# gunicorn==21.2.0
+# aioredis==2.0.1  # For session storage
+# prometheus-client==0.19.0  # For metrics
