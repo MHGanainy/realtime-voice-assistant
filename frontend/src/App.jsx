@@ -181,28 +181,31 @@ function App() {
     const audioContext = audioContextRef.current;
   
     while (audioQueueRef.current.length > 0) {
-      const audioData = audioQueueRef.current.shift();   // Uint8Array
+      let audioData = audioQueueRef.current.shift();   // Uint8Array
   
       try {
-        // ---------------------------------------------------------------
-        // Build an Int16 *view* over the same bytes (no value copying)
-        // ---------------------------------------------------------------
+        // -----------------------------------------------------------------
+        // Ensure the view starts at an even address for Int16Array
+        // -----------------------------------------------------------------
+        if (audioData.byteOffset & 1) {                // odd? → realign
+          audioData = new Uint8Array(audioData);       // copy, offset = 0
+        }
+  
         const int16Array = new Int16Array(
-          audioData.buffer,            // underlying ArrayBuffer
-          audioData.byteOffset,        // byte offset where this chunk starts
-          audioData.byteLength >> 1    // number of 16-bit samples (= bytes/2)
+          audioData.buffer,
+          audioData.byteOffset,                        // now guaranteed even
+          audioData.byteLength >> 1
         );
   
-        // Convert Int16 samples to Float32 samples in the range [-1, 1]
         const float32Array = new Float32Array(int16Array.length);
         for (let i = 0; i < int16Array.length; i++) {
-          float32Array[i] = int16Array[i] / 32768;       // signed-16 → float
+          float32Array[i] = int16Array[i] / 32768;
         }
   
         const audioBuffer = audioContext.createBuffer(
-          1,                         // mono
+          1,
           float32Array.length,
-          SAMPLE_RATE                // 16 kHz
+          SAMPLE_RATE
         );
         audioBuffer.getChannelData(0).set(float32Array);
   

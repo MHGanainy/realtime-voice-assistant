@@ -1,6 +1,9 @@
 import numpy as np
 import os
 from pipecat.services.deepgram.stt import DeepgramSTTService
+from pipecat.services.openai.llm import OpenAILLMService
+from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
+from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
 from pipecat.frames.frames import AudioRawFrame
 import logging
 
@@ -77,16 +80,19 @@ class AudioPipelineHandler:
         return self._audio_received
 
 
-def create_stt_service(service_name: str):
+def create_stt_service(service_name: str, **kwargs):
     """Create the appropriate STT service"""
     if service_name == "deepgram":
         api_key = os.getenv("DEEPGRAM_API_KEY")
         if not api_key:
             raise ValueError("DEEPGRAM_API_KEY not set")
         
-        # Create LiveOptions with nova-2 model
+        # Get model from kwargs or use default
+        model = kwargs.get("model", "nova-3")
+        
+        # Create LiveOptions
         live_options = LiveOptions(
-            model="nova-2",
+            model=model,
             encoding="linear16",
             sample_rate=16000,
             channels=1,
@@ -99,7 +105,72 @@ def create_stt_service(service_name: str):
         )
     else:
         raise ValueError(f"Unknown STT service: {service_name}")
-    
+
+
+def create_llm_service(service_name: str, **kwargs):
+    """Create the appropriate LLM service"""
+    if service_name == "openai":
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY not set")
+        
+        # Get model from kwargs or use default
+        model = kwargs.get("model", "gpt-3.5-turbo")
+        
+        return OpenAILLMService(
+            api_key=api_key,
+            model=model
+        )
+    # Add more LLM services here as needed
+    # elif service_name == "anthropic":
+    #     api_key = os.getenv("ANTHROPIC_API_KEY")
+    #     return AnthropicLLMService(api_key=api_key, **kwargs)
+    else:
+        raise ValueError(f"Unknown LLM service: {service_name}")
+
+
+def create_tts_service(service_name: str, **kwargs):
+    """Create the appropriate TTS service"""
+    if service_name == "elevenlabs":
+        api_key = os.getenv("ELEVEN_API_KEY")
+        if not api_key:
+            raise ValueError("ELEVEN_API_KEY not set")
+        
+        # Get voice and model from kwargs or use defaults
+        voice_id = kwargs.get("voice_id", "21m00Tcm4TlvDq8ikWAM")
+        model = kwargs.get("model", "eleven_flash_v2_5")
+        
+        return ElevenLabsTTSService(
+            api_key=api_key,
+            voice_id=voice_id,
+            model=model
+        )
+    # Add more TTS services here as needed
+    # elif service_name == "azure":
+    #     api_key = os.getenv("AZURE_SPEECH_KEY")
+    #     region = os.getenv("AZURE_SPEECH_REGION")
+    #     return AzureTTSService(api_key=api_key, region=region, **kwargs)
+    else:
+        raise ValueError(f"Unknown TTS service: {service_name}")
+
+
+def create_llm_context(llm_service: str, system_prompt: str = None, **kwargs):
+    """Create the appropriate LLM context based on the service"""
+    if llm_service == "openai":
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        
+        # Add any initial messages from kwargs
+        initial_messages = kwargs.get("initial_messages", [])
+        messages.extend(initial_messages)
+        
+        return OpenAILLMContext(messages)
+    # Add more context types here as needed
+    # elif llm_service == "anthropic":
+    #     return AnthropicLLMContext(system_prompt=system_prompt, **kwargs)
+    else:
+        raise ValueError(f"Unknown LLM service for context: {llm_service}")
 
 
 # Add at the end of audio_pipeline.py

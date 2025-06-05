@@ -6,7 +6,13 @@ from src.pipeline_manager import (
     create_audio_pipeline,
     create_pipeline_task
 )
-from src.audio_pipeline import create_stt_service
+from src.audio_pipeline import (
+    create_stt_service,
+    create_llm_service,
+    create_tts_service,
+    create_llm_context
+
+)
 from pipecat.transports.network.fastapi_websocket import (
     FastAPIWebsocketTransport,
     FastAPIWebsocketParams
@@ -14,9 +20,6 @@ from pipecat.transports.network.fastapi_websocket import (
 from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.audio.vad.silero import VADParams
 from pipecat.serializers.protobuf import ProtobufFrameSerializer
-from pipecat.services.openai.llm import OpenAILLMService
-from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
-from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
 from pipecat.pipeline.pipeline import Pipeline
 from dotenv import load_dotenv
 from pathlib import Path
@@ -81,7 +84,6 @@ async def websocket_endpoint(websocket: WebSocket):
     
     try:
         # Create transport with protobuf for audio only
-        
         transport = FastAPIWebsocketTransport(
             websocket=websocket,
             params=FastAPIWebsocketParams(
@@ -93,23 +95,16 @@ async def websocket_endpoint(websocket: WebSocket):
             )
         )
         
-        # Create services
+        # Create services using factory functions
         stt = create_stt_service("deepgram")
+        llm = create_llm_service("openai", model="gpt-3.5-turbo")
+        tts = create_tts_service("elevenlabs", voice_id="21m00Tcm4TlvDq8ikWAM")
         
-        llm = OpenAILLMService(
-            api_key=OPENAI_API_KEY,
-            model="gpt-3.5-turbo"
+        # Create context using factory function
+        context = create_llm_context(
+            llm_service="openai",
+            system_prompt="You are a helpful assistant. Keep your responses brief and conversational."
         )
-        
-        tts = ElevenLabsTTSService(
-            api_key=ELEVEN_API_KEY,
-            voice_id="21m00Tcm4TlvDq8ikWAM",
-            model="eleven_flash_v2_5"
-        )
-        
-        # Create context
-        messages = [{"role": "system", "content": "You are a helpful assistant. Keep your responses brief and conversational."}]
-        context = OpenAILLMContext(messages)
         context_aggregator = llm.create_context_aggregator(context)
         
         # Create pipeline - audio only
