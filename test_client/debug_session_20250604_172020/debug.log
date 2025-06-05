@@ -1,0 +1,491 @@
+[17:20:20.909] [DEVICES] Found 3 input devices
+[17:20:21.827] [MAIN] Starting application
+[17:20:21.827] [SESSION] Requesting session from server
+[17:20:21.921] [SESSION] Requesting new session ID
+[17:20:21.924] [SESSION] Got session ID: be3e03f6-3ed0-497a-b751-d7b714c204b6
+[17:20:21.924] [CONNECTION] Attempting WebSocket connection to ws://localhost:8000/ws/audio?session=be3e03f6-3ed0-497a-b751-d7b714c204b6
+[17:20:21.924] [WEBSOCKET_PARAMS] Connection parameters
+    Data: {'url': 'ws://localhost:8000/ws/audio?session=be3e03f6-3ed0-497a-b751-d7b714c204b6', 'max_size': 100000000, 'compression': None}
+[17:20:21.984] [CONNECTION] WebSocket connected
+    Data: {'compression': 'None', 'state': '1', 'local_address': "('127.0.0.1', 56098)", 'remote_address': "('127.0.0.1', 8000)"}
+[17:20:21.985] [FLOW] === AUDIO FLOW STARTING ===
+[17:20:21.985] [AUDIO_INIT] Preparing to open audio input stream
+[17:20:22.052] [AUDIO] Opened input stream
+    Data: {'device_index': 3, 'format': 'pyaudio.paInt16', 'channels': 1, 'rate': 16000, 'chunk_size': 512, 'callback_registered': True}
+[17:20:22.052] [FLOW] Starting recording flag
+[17:20:22.052] [AUDIO_START] Starting audio stream
+[17:20:22.052] [AUDIO_STARTED] Audio stream is now active
+[17:20:22.052] [TASKS] Creating async tasks
+[17:20:22.052] [TASK_CREATE] Creating send_audio task
+[17:20:22.052] [TASK_CREATE] Creating receive_responses task
+[17:20:22.052] [TASKS] Both tasks created and running
+[17:20:22.053] [THREAD] Enter key listener thread started
+[17:20:22.053] [INPUT] Waiting for user to press Enter
+[17:20:22.053] [MAIN_LOOP] Entering main wait loop
+[17:20:22.053] [SEND] Started send_audio task
+[17:20:22.053] [FLOW] SEND TASK: Waiting for audio from queue...
+[17:20:22.053] [QUEUE_STATE] Queue has 0 items
+[17:20:22.094] [CALLBACK] Audio callback #1
+    Data: {'frame_count': 512, 'status': 0, 'data_size': 1024, 'is_recording': True}
+[17:20:22.095] [QUEUE] Adding to queue
+    Data: {'current_queue_size': 0, 'data_size': 1024}
+[17:20:22.095] [AUDIO_IN] Captured chunk 0
+    Data: {'label': 'input', 'size_bytes': 1024, 'duration_ms': 32, 'sample_count': 512, 'max_value': 41, 'min_value': -61, 'avg_value': -17, 'is_silence': True, 'format': 'PCM'}
+[17:20:22.095] [FLOW] Got audio from queue: 1024 bytes
+[17:20:22.095] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.095] [FRAME_DETAILS] Frame created
+    Data: {'type': 'OutputAudioRawFrame', 'has_audio': True, 'audio_len': 1024, 'sample_rate': 16000, 'num_channels': 1}
+[17:20:22.095] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.095] [SERIALIZE_RESULT] Serialization complete
+    Data: {'success': True, 'input_size': 1024, 'output_size': 1058, 'overhead_bytes': 34, 'time_ms': '0.00', 'compression_ratio': '1.03'}
+[17:20:22.095] [PROTOBUF_HEX] First message hex dump
+    Data: {'first_50_bytes': '129f0812154f7574707574417564696f5261774672616d6523301a8008e8ffc3ffcdffceffcfffd5ffd9ffdaffdbffdeffe5', 'last_10_bytes': '000a000a0020807d2801'}
+[17:20:22.096] [WEBSOCKET_SEND] Sending 1058 bytes via WebSocket
+[17:20:22.096] [WEBSOCKET_SENT] Successfully sent chunk 0
+[17:20:22.126] [CALLBACK] Audio callback #2
+    Data: {'frame_count': 512, 'status': 0, 'data_size': 1024, 'is_recording': True}
+[17:20:22.126] [QUEUE] Adding to queue
+    Data: {'current_queue_size': 0, 'data_size': 1024}
+[17:20:22.127] [FLOW] Got audio from queue: 1024 bytes
+[17:20:22.127] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.127] [FRAME_DETAILS] Frame created
+    Data: {'type': 'OutputAudioRawFrame', 'has_audio': True, 'audio_len': 1024, 'sample_rate': 16000, 'num_channels': 1}
+[17:20:22.127] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.127] [SERIALIZE_RESULT] Serialization complete
+    Data: {'success': True, 'input_size': 1024, 'output_size': 1060, 'overhead_bytes': 36, 'time_ms': '0.00', 'compression_ratio': '1.04'}
+[17:20:22.127] [WEBSOCKET_SEND] Sending 1060 bytes via WebSocket
+[17:20:22.127] [WEBSOCKET_SENT] Successfully sent chunk 1
+[17:20:22.158] [CALLBACK] Audio callback #3
+    Data: {'frame_count': 512, 'status': 0, 'data_size': 1024, 'is_recording': True}
+[17:20:22.159] [QUEUE] Adding to queue
+    Data: {'current_queue_size': 0, 'data_size': 1024}
+[17:20:22.159] [FLOW] Got audio from queue: 1024 bytes
+[17:20:22.159] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.159] [FRAME_DETAILS] Frame created
+    Data: {'type': 'OutputAudioRawFrame', 'has_audio': True, 'audio_len': 1024, 'sample_rate': 16000, 'num_channels': 1}
+[17:20:22.159] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.159] [SERIALIZE_RESULT] Serialization complete
+    Data: {'success': True, 'input_size': 1024, 'output_size': 1060, 'overhead_bytes': 36, 'time_ms': '0.00', 'compression_ratio': '1.04'}
+[17:20:22.160] [WEBSOCKET_SEND] Sending 1060 bytes via WebSocket
+[17:20:22.160] [WEBSOCKET_SENT] Successfully sent chunk 2
+[17:20:22.190] [CALLBACK] Audio callback #4
+    Data: {'frame_count': 512, 'status': 0, 'data_size': 1024, 'is_recording': True}
+[17:20:22.191] [QUEUE] Adding to queue
+    Data: {'current_queue_size': 0, 'data_size': 1024}
+[17:20:22.191] [FLOW] Got audio from queue: 1024 bytes
+[17:20:22.191] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.191] [FRAME_DETAILS] Frame created
+    Data: {'type': 'OutputAudioRawFrame', 'has_audio': True, 'audio_len': 1024, 'sample_rate': 16000, 'num_channels': 1}
+[17:20:22.192] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.192] [SERIALIZE_RESULT] Serialization complete
+    Data: {'success': True, 'input_size': 1024, 'output_size': 1060, 'overhead_bytes': 36, 'time_ms': '0.00', 'compression_ratio': '1.04'}
+[17:20:22.192] [WEBSOCKET_SEND] Sending 1060 bytes via WebSocket
+[17:20:22.192] [WEBSOCKET_SENT] Successfully sent chunk 3
+[17:20:22.223] [CALLBACK] Audio callback #5
+    Data: {'frame_count': 512, 'status': 0, 'data_size': 1024, 'is_recording': True}
+[17:20:22.223] [QUEUE] Adding to queue
+    Data: {'current_queue_size': 0, 'data_size': 1024}
+[17:20:22.224] [FLOW] Got audio from queue: 1024 bytes
+[17:20:22.224] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.224] [FRAME_DETAILS] Frame created
+    Data: {'type': 'OutputAudioRawFrame', 'has_audio': True, 'audio_len': 1024, 'sample_rate': 16000, 'num_channels': 1}
+[17:20:22.224] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.224] [SERIALIZE_RESULT] Serialization complete
+    Data: {'success': True, 'input_size': 1024, 'output_size': 1060, 'overhead_bytes': 36, 'time_ms': '0.00', 'compression_ratio': '1.04'}
+[17:20:22.224] [WEBSOCKET_SEND] Sending 1060 bytes via WebSocket
+[17:20:22.224] [WEBSOCKET_SENT] Successfully sent chunk 4
+[17:20:22.255] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.255] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.256] [WEBSOCKET_SEND] Sending 1060 bytes via WebSocket
+[17:20:22.256] [WEBSOCKET_SENT] Successfully sent chunk 5
+[17:20:22.286] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.287] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.287] [WEBSOCKET_SEND] Sending 1060 bytes via WebSocket
+[17:20:22.287] [WEBSOCKET_SENT] Successfully sent chunk 6
+[17:20:22.318] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.319] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.319] [WEBSOCKET_SEND] Sending 1060 bytes via WebSocket
+[17:20:22.319] [WEBSOCKET_SENT] Successfully sent chunk 7
+[17:20:22.350] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.352] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.352] [WEBSOCKET_SEND] Sending 1060 bytes via WebSocket
+[17:20:22.353] [WEBSOCKET_SENT] Successfully sent chunk 8
+[17:20:22.383] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.383] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.384] [WEBSOCKET_SEND] Sending 1060 bytes via WebSocket
+[17:20:22.384] [WEBSOCKET_SENT] Successfully sent chunk 9
+[17:20:22.384] [QUEUE_STATE] Queue has 0 items
+[17:20:22.414] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.415] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.415] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:22.415] [WEBSOCKET_SENT] Successfully sent chunk 10
+[17:20:22.447] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.447] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.447] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:22.447] [WEBSOCKET_SENT] Successfully sent chunk 11
+[17:20:22.478] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.479] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.479] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:22.480] [WEBSOCKET_SENT] Successfully sent chunk 12
+[17:20:22.510] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.511] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.511] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:22.511] [WEBSOCKET_SENT] Successfully sent chunk 13
+[17:20:22.543] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.543] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.544] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:22.544] [WEBSOCKET_SENT] Successfully sent chunk 14
+[17:20:22.575] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.575] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.576] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:22.576] [WEBSOCKET_SENT] Successfully sent chunk 15
+[17:20:22.607] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.607] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.607] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:22.607] [WEBSOCKET_SENT] Successfully sent chunk 16
+[17:20:22.639] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.639] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.639] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:22.639] [WEBSOCKET_SENT] Successfully sent chunk 17
+[17:20:22.671] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.671] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.672] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:22.672] [WEBSOCKET_SENT] Successfully sent chunk 18
+[17:20:22.703] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.703] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.703] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:22.704] [WEBSOCKET_SENT] Successfully sent chunk 19
+[17:20:22.704] [QUEUE_STATE] Queue has 0 items
+[17:20:22.735] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.735] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.735] [SERIALIZE_RESULT] Serialization complete
+    Data: {'success': True, 'input_size': 1024, 'output_size': 1061, 'overhead_bytes': 37, 'time_ms': '0.00', 'compression_ratio': '1.04'}
+[17:20:22.735] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:22.735] [WEBSOCKET_SENT] Successfully sent chunk 20
+[17:20:22.766] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.767] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.768] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:22.769] [WEBSOCKET_SENT] Successfully sent chunk 21
+[17:20:22.798] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.799] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.799] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:22.800] [WEBSOCKET_SENT] Successfully sent chunk 22
+[17:20:22.830] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.831] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.832] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:22.832] [WEBSOCKET_SENT] Successfully sent chunk 23
+[17:20:22.863] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.863] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.864] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:22.864] [WEBSOCKET_SENT] Successfully sent chunk 24
+[17:20:22.895] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.895] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.896] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:22.896] [WEBSOCKET_SENT] Successfully sent chunk 25
+[17:20:22.927] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.928] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.928] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:22.929] [WEBSOCKET_SENT] Successfully sent chunk 26
+[17:20:22.959] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.959] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.960] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:22.960] [WEBSOCKET_SENT] Successfully sent chunk 27
+[17:20:22.990] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:22.991] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:22.991] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:22.992] [WEBSOCKET_SENT] Successfully sent chunk 28
+[17:20:23.023] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.023] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.023] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.024] [WEBSOCKET_SENT] Successfully sent chunk 29
+[17:20:23.024] [QUEUE_STATE] Queue has 0 items
+[17:20:23.054] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.055] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.055] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.056] [WEBSOCKET_SENT] Successfully sent chunk 30
+[17:20:23.086] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.087] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.087] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.087] [WEBSOCKET_SENT] Successfully sent chunk 31
+[17:20:23.118] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.119] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.119] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.119] [WEBSOCKET_SENT] Successfully sent chunk 32
+[17:20:23.150] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.151] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.151] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.151] [WEBSOCKET_SENT] Successfully sent chunk 33
+[17:20:23.183] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.183] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.184] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.184] [WEBSOCKET_SENT] Successfully sent chunk 34
+[17:20:23.214] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.215] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.215] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.216] [WEBSOCKET_SENT] Successfully sent chunk 35
+[17:20:23.247] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.247] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.248] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.248] [WEBSOCKET_SENT] Successfully sent chunk 36
+[17:20:23.278] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.279] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.279] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.280] [WEBSOCKET_SENT] Successfully sent chunk 37
+[17:20:23.310] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.311] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.311] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.312] [WEBSOCKET_SENT] Successfully sent chunk 38
+[17:20:23.343] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.343] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.343] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.343] [WEBSOCKET_SENT] Successfully sent chunk 39
+[17:20:23.343] [QUEUE_STATE] Queue has 0 items
+[17:20:23.375] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.375] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.375] [SERIALIZE_RESULT] Serialization complete
+    Data: {'success': True, 'input_size': 1024, 'output_size': 1061, 'overhead_bytes': 37, 'time_ms': '0.00', 'compression_ratio': '1.04'}
+[17:20:23.375] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.375] [WEBSOCKET_SENT] Successfully sent chunk 40
+[17:20:23.406] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.407] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.407] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.408] [WEBSOCKET_SENT] Successfully sent chunk 41
+[17:20:23.438] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.439] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.439] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.440] [WEBSOCKET_SENT] Successfully sent chunk 42
+[17:20:23.470] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.471] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.471] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.471] [WEBSOCKET_SENT] Successfully sent chunk 43
+[17:20:23.503] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.503] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.504] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.504] [WEBSOCKET_SENT] Successfully sent chunk 44
+[17:20:23.534] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.535] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.536] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.536] [WEBSOCKET_SENT] Successfully sent chunk 45
+[17:20:23.566] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.567] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.567] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.568] [WEBSOCKET_SENT] Successfully sent chunk 46
+[17:20:23.598] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.599] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.599] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.600] [WEBSOCKET_SENT] Successfully sent chunk 47
+[17:20:23.630] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.631] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.631] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.632] [WEBSOCKET_SENT] Successfully sent chunk 48
+[17:20:23.663] [CALLBACK] Audio callback #50
+    Data: {'frame_count': 512, 'status': 0, 'data_size': 1024, 'is_recording': True}
+[17:20:23.663] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.664] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.664] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.664] [WEBSOCKET_SENT] Successfully sent chunk 49
+[17:20:23.665] [QUEUE_STATE] Queue has 0 items
+[17:20:23.695] [AUDIO_IN] Captured chunk 50
+    Data: {'label': 'input', 'size_bytes': 1024, 'duration_ms': 32, 'sample_count': 512, 'max_value': 1242, 'min_value': -4, 'avg_value': 718, 'is_silence': False, 'format': 'PCM'}
+[17:20:23.695] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.695] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.696] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.696] [WEBSOCKET_SENT] Successfully sent chunk 50
+[17:20:23.726] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.727] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.727] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.728] [WEBSOCKET_SENT] Successfully sent chunk 51
+[17:20:23.759] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.759] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.759] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.760] [WEBSOCKET_SENT] Successfully sent chunk 52
+[17:20:23.791] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.791] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.791] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.792] [WEBSOCKET_SENT] Successfully sent chunk 53
+[17:20:23.823] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.823] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.824] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.824] [WEBSOCKET_SENT] Successfully sent chunk 54
+[17:20:23.855] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.855] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.856] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.856] [WEBSOCKET_SENT] Successfully sent chunk 55
+[17:20:23.886] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.887] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.887] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.888] [WEBSOCKET_SENT] Successfully sent chunk 56
+[17:20:23.919] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.919] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.920] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.920] [WEBSOCKET_SENT] Successfully sent chunk 57
+[17:20:23.950] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.951] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.951] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.952] [WEBSOCKET_SENT] Successfully sent chunk 58
+[17:20:23.983] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:23.983] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:23.983] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:23.984] [WEBSOCKET_SENT] Successfully sent chunk 59
+[17:20:23.984] [QUEUE_STATE] Queue has 0 items
+[17:20:24.014] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:24.015] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:24.015] [SERIALIZE_RESULT] Serialization complete
+    Data: {'success': True, 'input_size': 1024, 'output_size': 1061, 'overhead_bytes': 37, 'time_ms': '0.00', 'compression_ratio': '1.04'}
+[17:20:24.015] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:24.016] [WEBSOCKET_SENT] Successfully sent chunk 60
+[17:20:24.046] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:24.047] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:24.047] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:24.048] [WEBSOCKET_SENT] Successfully sent chunk 61
+[17:20:24.078] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:24.079] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:24.079] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:24.079] [WEBSOCKET_SENT] Successfully sent chunk 62
+[17:20:24.110] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:24.111] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:24.111] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:24.111] [WEBSOCKET_SENT] Successfully sent chunk 63
+[17:20:24.143] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:24.143] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:24.143] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:24.144] [WEBSOCKET_SENT] Successfully sent chunk 64
+[17:20:24.174] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:24.175] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:24.175] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:24.176] [WEBSOCKET_SENT] Successfully sent chunk 65
+[17:20:24.206] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:24.207] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:24.207] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:24.208] [WEBSOCKET_SENT] Successfully sent chunk 66
+[17:20:24.238] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:24.239] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:24.239] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:24.239] [WEBSOCKET_SENT] Successfully sent chunk 67
+[17:20:24.271] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:24.271] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:24.272] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:24.272] [WEBSOCKET_SENT] Successfully sent chunk 68
+[17:20:24.303] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:24.303] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:24.304] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:24.304] [WEBSOCKET_SENT] Successfully sent chunk 69
+[17:20:24.304] [QUEUE_STATE] Queue has 0 items
+[17:20:24.335] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:24.335] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:24.335] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:24.335] [WEBSOCKET_SENT] Successfully sent chunk 70
+[17:20:24.367] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:24.367] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:24.368] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:24.368] [WEBSOCKET_SENT] Successfully sent chunk 71
+[17:20:24.399] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:24.399] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:24.399] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:24.400] [WEBSOCKET_SENT] Successfully sent chunk 72
+[17:20:24.430] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:24.431] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:24.431] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:24.432] [WEBSOCKET_SENT] Successfully sent chunk 73
+[17:20:24.463] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:24.463] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:24.463] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:24.464] [WEBSOCKET_SENT] Successfully sent chunk 74
+[17:20:24.495] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 1024, 'sample_rate': 16000, 'channels': 1}
+[17:20:24.495] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[17:20:24.495] [WEBSOCKET_SEND] Sending 1061 bytes via WebSocket
+[17:20:24.496] [WEBSOCKET_SENT] Successfully sent chunk 75
+[17:20:24.510] [INPUT] Enter pressed by user
+[17:20:24.511] [USER] Stop requested
+[17:20:24.599] [QUEUE_EMPTY] No audio in queue, waiting...
+[17:20:24.600] [SEND] Ended send_audio task
+    Data: {'total_chunks': 76, 'total_bytes': 77824}
+[17:20:24.601] [RECEIVE] Started receive_responses task
+[17:20:24.601] [FLOW] RECEIVE TASK: Waiting for server messages...
+[17:20:24.602] [WEBSOCKET_RECV] Waiting for message #1
+[17:20:24.602] [SHUTDOWN] Beginning shutdown sequence
+[17:20:24.602] [AUDIO_STOP] Stopping audio input stream
+[17:20:24.720] [AUDIO] Input stream closed
+[17:20:24.721] [WAIT] Waiting 3 seconds for final responses
+[17:20:27.723] [PLAYBACK_STOP] Setting stop flag for playback thread
+[17:20:27.723] [TASKS_CANCEL] Cancelling async tasks
+[17:20:27.724] [TASKS_CANCELLED] All tasks cancelled
+[17:20:27.725] [COMPLETE] Session ended successfully
+[17:20:27.727] [CLEANUP] Starting final cleanup
+[17:20:27.727] [CLEANUP] Audio terminated

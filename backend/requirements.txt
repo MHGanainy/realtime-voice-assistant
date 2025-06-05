@@ -1,35 +1,11 @@
-# Core dependencies
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-websockets==12.0
-python-dotenv==1.0.0
-loguru>=0.7.2
-
-# Session management
-starlette==0.27.0
-itsdangerous==2.1.2
-
-# Pipecat with required extras (THIS IS THE KEY CHANGE)
-pipecat-ai[silero]>=0.0.68
-
-# AI Service SDKs
-openai>=1.3.5
-deepgram-sdk>=4.1.0
-elevenlabs==0.2.27
-
-# Audio processing
-numpy>=1.24.3
-scipy>=1.11.4
-onnxruntime>=1.16.0  # Explicitly add this for Silero VAD
-
-# Async support
-asyncio==3.4.3
-aiofiles==23.2.1
-
-# Optional but recommended
-pydantic>=2.5.0
-python-multipart==0.0.6
-
-# For production (optional)
-redis==5.0.1  # If you want to use Redis for session storage
-gunicorn==21.2.0  # For production deployment
+fastapi
+uvicorn[standard]
+pipecat-ai
+deepgram-sdk
+openai
+elevenlabs
+pytest
+pytest-asyncio
+pytest-mock
+websockets
+python-dotenv

@@ -1,0 +1,1921 @@
+[18:00:37.134] [DEVICES] Found 3 input devices
+[18:00:37.793] [MAIN] Starting application
+[18:00:37.794] [SESSION] Requesting session from server
+[18:00:37.879] [SESSION] Requesting new session ID
+[18:00:37.881] [SESSION] Got session ID: fa9ef1a8-319e-4e01-95fb-1faeb0faf8c9
+[18:00:37.881] [CONNECTION] Attempting WebSocket connection to ws://localhost:8000/ws/audio?session=fa9ef1a8-319e-4e01-95fb-1faeb0faf8c9
+[18:00:37.882] [WEBSOCKET_PARAMS] Connection parameters
+    Data: {'url': 'ws://localhost:8000/ws/audio?session=fa9ef1a8-319e-4e01-95fb-1faeb0faf8c9', 'max_size': 100000000, 'compression': None}
+[18:00:37.933] [CONNECTION] WebSocket connected
+    Data: {'compression': 'None', 'state': '1', 'local_address': "('127.0.0.1', 56430)", 'remote_address': "('127.0.0.1', 8000)"}
+[18:00:37.933] [FLOW] === AUDIO FLOW STARTING ===
+[18:00:37.933] [AUDIO_INIT] Preparing to open audio input stream
+[18:00:38.002] [AUDIO] Opened input stream
+    Data: {'device_index': 3, 'format': 'pyaudio.paInt16', 'channels': 1, 'rate': 16000, 'chunk_size': 1600, 'callback_registered': True}
+[18:00:38.002] [FLOW] Starting recording flag
+[18:00:38.002] [AUDIO_START] Starting audio stream
+[18:00:38.002] [AUDIO_STARTED] Audio stream is now active
+[18:00:38.002] [TASKS] Creating async tasks
+[18:00:38.002] [TASK_CREATE] Creating send_audio task
+[18:00:38.002] [TASK_CREATE] Creating receive_responses task
+[18:00:38.002] [TASKS] Both tasks created and running
+[18:00:38.002] [INPUT] Waiting for user to press Enter
+[18:00:38.003] [THREAD] Enter key listener thread started
+[18:00:38.003] [MAIN_LOOP] Entering main wait loop
+[18:00:38.003] [SEND] Started send_audio task
+[18:00:38.003] [FLOW] SEND TASK: Waiting for audio from queue...
+[18:00:38.003] [QUEUE_STATE] Queue has 0 items
+[18:00:38.108] [QUEUE_EMPTY] No audio in queue, waiting...
+[18:00:38.108] [QUEUE_STATE] Queue has 0 items
+[18:00:38.135] [CALLBACK] Audio callback #1
+    Data: {'frame_count': 1600, 'status': 0, 'data_size': 3200, 'is_recording': True}
+[18:00:38.136] [QUEUE] Adding to queue
+    Data: {'current_queue_size': 0, 'data_size': 3200}
+[18:00:38.136] [AUDIO_IN] Captured chunk 0
+    Data: {'label': 'input', 'size_bytes': 3200, 'duration_ms': 100, 'sample_count': 1600, 'max_value': 51, 'min_value': -88, 'avg_value': -4, 'is_silence': True, 'format': 'PCM'}
+[18:00:38.136] [FLOW] Got audio from queue: 3200 bytes
+[18:00:38.136] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:38.136] [FRAME_DETAILS] Frame created
+    Data: {'type': 'OutputAudioRawFrame', 'has_audio': True, 'audio_len': 3200, 'sample_rate': 16000, 'num_channels': 1}
+[18:00:38.136] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:38.136] [SERIALIZE_RESULT] Serialization complete
+    Data: {'success': True, 'input_size': 3200, 'output_size': 3234, 'overhead_bytes': 34, 'time_ms': '0.00', 'compression_ratio': '1.01'}
+[18:00:38.137] [PROTOBUF_HEX] First message hex dump
+    Data: {'first_50_bytes': '129f1912154f7574707574417564696f5261774672616d6523301a8019dcffa8ffbaffb6ffc8ffd7ffd5ffe1ffd5ffd8ffe0', 'last_10_bytes': '000000000020807d2801'}
+[18:00:38.137] [WEBSOCKET_SEND] Sending 3234 bytes via WebSocket
+[18:00:38.137] [WEBSOCKET_SENT] Successfully sent chunk 0
+[18:00:38.235] [CALLBACK] Audio callback #2
+    Data: {'frame_count': 1600, 'status': 0, 'data_size': 3200, 'is_recording': True}
+[18:00:38.236] [QUEUE] Adding to queue
+    Data: {'current_queue_size': 0, 'data_size': 3200}
+[18:00:38.236] [FLOW] Got audio from queue: 3200 bytes
+[18:00:38.236] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:38.236] [FRAME_DETAILS] Frame created
+    Data: {'type': 'OutputAudioRawFrame', 'has_audio': True, 'audio_len': 3200, 'sample_rate': 16000, 'num_channels': 1}
+[18:00:38.237] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:38.237] [SERIALIZE_RESULT] Serialization complete
+    Data: {'success': True, 'input_size': 3200, 'output_size': 3236, 'overhead_bytes': 36, 'time_ms': '0.00', 'compression_ratio': '1.01'}
+[18:00:38.237] [WEBSOCKET_SEND] Sending 3236 bytes via WebSocket
+[18:00:38.238] [WEBSOCKET_SENT] Successfully sent chunk 1
+[18:00:38.335] [CALLBACK] Audio callback #3
+    Data: {'frame_count': 1600, 'status': 0, 'data_size': 3200, 'is_recording': True}
+[18:00:38.335] [QUEUE] Adding to queue
+    Data: {'current_queue_size': 0, 'data_size': 3200}
+[18:00:38.336] [FLOW] Got audio from queue: 3200 bytes
+[18:00:38.336] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:38.336] [FRAME_DETAILS] Frame created
+    Data: {'type': 'OutputAudioRawFrame', 'has_audio': True, 'audio_len': 3200, 'sample_rate': 16000, 'num_channels': 1}
+[18:00:38.336] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:38.336] [SERIALIZE_RESULT] Serialization complete
+    Data: {'success': True, 'input_size': 3200, 'output_size': 3236, 'overhead_bytes': 36, 'time_ms': '0.00', 'compression_ratio': '1.01'}
+[18:00:38.337] [WEBSOCKET_SEND] Sending 3236 bytes via WebSocket
+[18:00:38.337] [WEBSOCKET_SENT] Successfully sent chunk 2
+[18:00:38.435] [CALLBACK] Audio callback #4
+    Data: {'frame_count': 1600, 'status': 0, 'data_size': 3200, 'is_recording': True}
+[18:00:38.436] [QUEUE] Adding to queue
+    Data: {'current_queue_size': 0, 'data_size': 3200}
+[18:00:38.436] [FLOW] Got audio from queue: 3200 bytes
+[18:00:38.436] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:38.436] [FRAME_DETAILS] Frame created
+    Data: {'type': 'OutputAudioRawFrame', 'has_audio': True, 'audio_len': 3200, 'sample_rate': 16000, 'num_channels': 1}
+[18:00:38.436] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:38.437] [SERIALIZE_RESULT] Serialization complete
+    Data: {'success': True, 'input_size': 3200, 'output_size': 3236, 'overhead_bytes': 36, 'time_ms': '0.00', 'compression_ratio': '1.01'}
+[18:00:38.437] [WEBSOCKET_SEND] Sending 3236 bytes via WebSocket
+[18:00:38.437] [WEBSOCKET_SENT] Successfully sent chunk 3
+[18:00:38.535] [CALLBACK] Audio callback #5
+    Data: {'frame_count': 1600, 'status': 0, 'data_size': 3200, 'is_recording': True}
+[18:00:38.536] [QUEUE] Adding to queue
+    Data: {'current_queue_size': 0, 'data_size': 3200}
+[18:00:38.536] [FLOW] Got audio from queue: 3200 bytes
+[18:00:38.537] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:38.539] [FRAME_DETAILS] Frame created
+    Data: {'type': 'OutputAudioRawFrame', 'has_audio': True, 'audio_len': 3200, 'sample_rate': 16000, 'num_channels': 1}
+[18:00:38.540] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:38.541] [SERIALIZE_RESULT] Serialization complete
+    Data: {'success': True, 'input_size': 3200, 'output_size': 3236, 'overhead_bytes': 36, 'time_ms': '0.00', 'compression_ratio': '1.01'}
+[18:00:38.542] [WEBSOCKET_SEND] Sending 3236 bytes via WebSocket
+[18:00:38.542] [WEBSOCKET_SENT] Successfully sent chunk 4
+[18:00:38.635] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:38.636] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:38.637] [WEBSOCKET_SEND] Sending 3236 bytes via WebSocket
+[18:00:38.637] [WEBSOCKET_SENT] Successfully sent chunk 5
+[18:00:38.735] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:38.736] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:38.737] [WEBSOCKET_SEND] Sending 3236 bytes via WebSocket
+[18:00:38.737] [WEBSOCKET_SENT] Successfully sent chunk 6
+[18:00:38.835] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:38.836] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:38.837] [WEBSOCKET_SEND] Sending 3236 bytes via WebSocket
+[18:00:38.837] [WEBSOCKET_SENT] Successfully sent chunk 7
+[18:00:38.935] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:38.936] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:38.937] [WEBSOCKET_SEND] Sending 3236 bytes via WebSocket
+[18:00:38.937] [WEBSOCKET_SENT] Successfully sent chunk 8
+[18:00:39.035] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:39.035] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:39.036] [WEBSOCKET_SEND] Sending 3236 bytes via WebSocket
+[18:00:39.036] [WEBSOCKET_SENT] Successfully sent chunk 9
+[18:00:39.036] [QUEUE_STATE] Queue has 0 items
+[18:00:39.136] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:39.136] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:39.137] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:39.137] [WEBSOCKET_SENT] Successfully sent chunk 10
+[18:00:39.235] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:39.236] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:39.237] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:39.237] [WEBSOCKET_SENT] Successfully sent chunk 11
+[18:00:39.335] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:39.336] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:39.337] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:39.337] [WEBSOCKET_SENT] Successfully sent chunk 12
+[18:00:39.435] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:39.436] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:39.437] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:39.437] [WEBSOCKET_SENT] Successfully sent chunk 13
+[18:00:39.535] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:39.536] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:39.536] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:39.537] [WEBSOCKET_SENT] Successfully sent chunk 14
+[18:00:39.635] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:39.636] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:39.636] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:39.636] [WEBSOCKET_SENT] Successfully sent chunk 15
+[18:00:39.735] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:39.736] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:39.737] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:39.737] [WEBSOCKET_SENT] Successfully sent chunk 16
+[18:00:39.835] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:39.836] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:39.836] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:39.837] [WEBSOCKET_SENT] Successfully sent chunk 17
+[18:00:39.935] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:39.936] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:39.936] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:39.937] [WEBSOCKET_SENT] Successfully sent chunk 18
+[18:00:40.035] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:40.036] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:40.037] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:40.037] [WEBSOCKET_SENT] Successfully sent chunk 19
+[18:00:40.037] [QUEUE_STATE] Queue has 0 items
+[18:00:40.135] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:40.136] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:40.137] [SERIALIZE_RESULT] Serialization complete
+    Data: {'success': True, 'input_size': 3200, 'output_size': 3237, 'overhead_bytes': 37, 'time_ms': '0.00', 'compression_ratio': '1.01'}
+[18:00:40.138] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:40.138] [WEBSOCKET_SENT] Successfully sent chunk 20
+[18:00:40.235] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:40.236] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:40.236] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:40.237] [WEBSOCKET_SENT] Successfully sent chunk 21
+[18:00:40.336] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:40.336] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:40.337] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:40.337] [WEBSOCKET_SENT] Successfully sent chunk 22
+[18:00:40.435] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:40.436] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:40.437] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:40.437] [WEBSOCKET_SENT] Successfully sent chunk 23
+[18:00:40.535] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:40.536] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:40.537] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:40.537] [WEBSOCKET_SENT] Successfully sent chunk 24
+[18:00:40.635] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:40.636] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:40.637] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:40.637] [WEBSOCKET_SENT] Successfully sent chunk 25
+[18:00:40.736] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:40.736] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:40.737] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:40.737] [WEBSOCKET_SENT] Successfully sent chunk 26
+[18:00:40.835] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:40.836] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:40.837] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:40.837] [WEBSOCKET_SENT] Successfully sent chunk 27
+[18:00:40.935] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:40.936] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:40.937] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:40.937] [WEBSOCKET_SENT] Successfully sent chunk 28
+[18:00:41.035] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:41.036] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:41.037] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:41.037] [WEBSOCKET_SENT] Successfully sent chunk 29
+[18:00:41.038] [QUEUE_STATE] Queue has 0 items
+[18:00:41.136] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:41.136] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:41.137] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:41.138] [WEBSOCKET_SENT] Successfully sent chunk 30
+[18:00:41.235] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:41.236] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:41.237] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:41.238] [WEBSOCKET_SENT] Successfully sent chunk 31
+[18:00:41.335] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:41.336] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:41.337] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:41.337] [WEBSOCKET_SENT] Successfully sent chunk 32
+[18:00:41.436] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:41.436] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:41.437] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:41.438] [WEBSOCKET_SENT] Successfully sent chunk 33
+[18:00:41.535] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:41.536] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:41.536] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:41.537] [WEBSOCKET_SENT] Successfully sent chunk 34
+[18:00:41.635] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:41.636] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:41.637] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:41.637] [WEBSOCKET_SENT] Successfully sent chunk 35
+[18:00:41.735] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:41.736] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:41.736] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:41.737] [WEBSOCKET_SENT] Successfully sent chunk 36
+[18:00:41.835] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:41.836] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:41.836] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:41.837] [WEBSOCKET_SENT] Successfully sent chunk 37
+[18:00:41.935] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:41.936] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:41.936] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:41.937] [WEBSOCKET_SENT] Successfully sent chunk 38
+[18:00:42.035] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:42.036] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:42.037] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:42.037] [WEBSOCKET_SENT] Successfully sent chunk 39
+[18:00:42.037] [QUEUE_STATE] Queue has 0 items
+[18:00:42.135] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:42.136] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:42.137] [SERIALIZE_RESULT] Serialization complete
+    Data: {'success': True, 'input_size': 3200, 'output_size': 3237, 'overhead_bytes': 37, 'time_ms': '0.00', 'compression_ratio': '1.01'}
+[18:00:42.138] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:42.138] [WEBSOCKET_SENT] Successfully sent chunk 40
+[18:00:42.235] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:42.236] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:42.236] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:42.237] [WEBSOCKET_SENT] Successfully sent chunk 41
+[18:00:42.335] [FRAME_CREATE] Creating OutputAudioRawFrame
+    Data: {'audio_size': 3200, 'sample_rate': 16000, 'channels': 1}
+[18:00:42.336] [SERIALIZE_START] Starting serialization of OutputAudioRawFrame
+[18:00:42.336] [WEBSOCKET_SEND] Sending 3237 bytes via WebSocket
+[18:00:42.337] [WEBSOCKET_SENT] Successfully sent chunk 42
+[18:00:42.384] [INPUT] Enter pressed by user
+[18:00:42.384] [USER] Stop requested
+[18:00:42.441] [SEND] Ended send_audio task
+    Data: {'total_chunks': 43, 'total_bytes': 137600}
+[18:00:42.442] [RECEIVE] Started receive_responses task
+[18:00:42.442] [FLOW] RECEIVE TASK: Waiting for server messages...
+[18:00:42.443] [WEBSOCKET_RECV] Waiting for message #1
+[18:00:42.443] [SHUTDOWN] Beginning shutdown sequence
+[18:00:42.444] [AUDIO_STOP] Stopping audio input stream
+[18:00:42.560] [AUDIO] Input stream closed
+[18:00:42.561] [WAIT] Waiting 3 seconds for final responses
+[18:00:44.685] [WEBSOCKET] Received message #1
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:44.685] [RAW_MESSAGE] Binary message details
+    Data: {'size': 1319, 'first_20_hex': '12a40a08c70612174f7574707574417564696f52', 'last_10_hex': '0e3a0df10620807d2801'}
+[18:00:44.686] [DEBUG_FILE] Saved raw message to debug_session_20250604_180037/raw_msg_0.bin
+[18:00:44.686] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:44.687] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:44.687] [FRAME_ATTRS] Frame attributes
+    Data: {'audio': '1280 bytes', 'sample_rate': 16000, 'num_channels': 1}
+[18:00:44.687] [AUDIO_FRAME] Processing audio frame #1
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 1280}
+[18:00:44.687] [AUDIO] Received audio chunk 1
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 2, 'min_value': -5, 'avg_value': -1, 'is_silence': True, 'format': 'PCM'}
+[18:00:44.687] [AUDIO_SAVED] Saved audio sample to debug_session_20250604_180037/received_1_43.wav
+[18:00:44.688] [PLAYBACK_INIT] Initializing playback for first audio chunk
+[18:00:44.688] [PLAYBACK] Started playback thread
+[18:00:44.688] [PLAYBACK_THREAD] Starting playback worker thread
+[18:00:44.688] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:44.689] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:44.689] [WEBSOCKET_RECV] Waiting for message #2
+[18:00:44.689] [WEBSOCKET] Received message #2
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:44.689] [RAW_MESSAGE] Binary message details
+    Data: {'size': 1319, 'first_20_hex': '12a40a08c80612174f7574707574417564696f52', 'last_10_hex': '0603140d1f20807d2801'}
+[18:00:44.690] [DEBUG_FILE] Saved raw message to debug_session_20250604_180037/raw_msg_1.bin
+[18:00:44.691] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:44.691] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:44.691] [FRAME_ATTRS] Frame attributes
+    Data: {'audio': '1280 bytes', 'sample_rate': 16000, 'num_channels': 1}
+[18:00:44.691] [AUDIO_FRAME] Processing audio frame #2
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 2560}
+[18:00:44.691] [AUDIO] Received audio chunk 2
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 4990, 'min_value': -7270, 'avg_value': -187, 'is_silence': False, 'format': 'PCM'}
+[18:00:44.691] [AUDIO_SAVED] Saved audio sample to debug_session_20250604_180037/received_2_43.wav
+[18:00:44.692] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:44.692] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:44.692] [WEBSOCKET_RECV] Waiting for message #3
+[18:00:44.726] [WEBSOCKET] Received message #3
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:44.726] [RAW_MESSAGE] Binary message details
+    Data: {'size': 1319, 'first_20_hex': '12a40a08c90612174f7574707574417564696f52', 'last_10_hex': '04a8045c0420807d2801'}
+[18:00:44.727] [DEBUG_FILE] Saved raw message to debug_session_20250604_180037/raw_msg_2.bin
+[18:00:44.727] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:44.727] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:44.727] [FRAME_ATTRS] Frame attributes
+    Data: {'audio': '1280 bytes', 'sample_rate': 16000, 'num_channels': 1}
+[18:00:44.727] [AUDIO_FRAME] Processing audio frame #3
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 3840}
+[18:00:44.727] [AUDIO] Received audio chunk 3
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 14503, 'min_value': -9154, 'avg_value': 79, 'is_silence': False, 'format': 'PCM'}
+[18:00:44.728] [AUDIO_SAVED] Saved audio sample to debug_session_20250604_180037/received_3_43.wav
+[18:00:44.728] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:44.728] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:44.728] [WEBSOCKET_RECV] Waiting for message #4
+[18:00:44.766] [WEBSOCKET] Received message #4
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:44.766] [RAW_MESSAGE] Binary message details
+    Data: {'size': 1319, 'first_20_hex': '12a40a08f10612174f7574707574417564696f52', 'last_10_hex': 'fd1718c52520807d2801'}
+[18:00:44.766] [DEBUG_FILE] Saved raw message to debug_session_20250604_180037/raw_msg_3.bin
+[18:00:44.766] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:44.766] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:44.766] [FRAME_ATTRS] Frame attributes
+    Data: {'audio': '1280 bytes', 'sample_rate': 16000, 'num_channels': 1}
+[18:00:44.766] [AUDIO_FRAME] Processing audio frame #4
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 5120}
+[18:00:44.766] [AUDIO] Received audio chunk 4
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 1042, 'min_value': -1325, 'avg_value': -116, 'is_silence': False, 'format': 'PCM'}
+[18:00:44.767] [AUDIO_SAVED] Saved audio sample to debug_session_20250604_180037/received_4_43.wav
+[18:00:44.767] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:44.767] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:44.767] [WEBSOCKET_RECV] Waiting for message #5
+[18:00:44.807] [WEBSOCKET] Received message #5
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:44.807] [RAW_MESSAGE] Binary message details
+    Data: {'size': 1319, 'first_20_hex': '12a40a08f20612174f7574707574417564696f52', 'last_10_hex': '1740146e0b20807d2801'}
+[18:00:44.808] [DEBUG_FILE] Saved raw message to debug_session_20250604_180037/raw_msg_4.bin
+[18:00:44.808] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:44.808] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:44.808] [FRAME_ATTRS] Frame attributes
+    Data: {'audio': '1280 bytes', 'sample_rate': 16000, 'num_channels': 1}
+[18:00:44.808] [AUDIO_FRAME] Processing audio frame #5
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 6400}
+[18:00:44.809] [AUDIO] Received audio chunk 5
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 9766, 'min_value': -10891, 'avg_value': -167, 'is_silence': False, 'format': 'PCM'}
+[18:00:44.809] [AUDIO_SAVED] Saved audio sample to debug_session_20250604_180037/received_5_43.wav
+[18:00:44.809] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:44.810] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:44.810] [WEBSOCKET_RECV] Waiting for message #6
+[18:00:44.822] [PLAYBACK] Audio output stream opened
+    Data: {'format': 'pyaudio.paInt16', 'channels': 1, 'rate': 16000, 'chunk_size': 1600}
+[18:00:44.822] [PLAYBACK_QUEUE] Queue state
+    Data: {'items_in_queue': 5, 'chunks_played_so_far': 0}
+[18:00:44.823] [PLAYBACK_GOT] Got audio chunk #1 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:44.823] [PLAYBACK] Playing chunk 0
+    Data: {'label': 'playback', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 2, 'min_value': -5, 'avg_value': -1, 'is_silence': True, 'format': 'PCM'}
+[18:00:44.823] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:44.846] [WEBSOCKET] Received message #6
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:44.846] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:44.846] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:44.846] [AUDIO_FRAME] Processing audio frame #6
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 7680}
+[18:00:44.846] [AUDIO] Received audio chunk 6
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 8857, 'min_value': -10557, 'avg_value': -60, 'is_silence': False, 'format': 'PCM'}
+[18:00:44.846] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:44.846] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:44.846] [WEBSOCKET_RECV] Waiting for message #7
+[18:00:44.861] [PYAUDIO_WRITTEN] Successfully played chunk #1
+[18:00:44.861] [PLAYBACK_GOT] Got audio chunk #2 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:44.861] [PLAYBACK] Playing chunk 1
+    Data: {'label': 'playback', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 4990, 'min_value': -7270, 'avg_value': -187, 'is_silence': False, 'format': 'PCM'}
+[18:00:44.861] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:44.861] [PYAUDIO_WRITTEN] Successfully played chunk #2
+[18:00:44.861] [PLAYBACK_GOT] Got audio chunk #3 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:44.861] [PLAYBACK] Playing chunk 2
+    Data: {'label': 'playback', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 14503, 'min_value': -9154, 'avg_value': 79, 'is_silence': False, 'format': 'PCM'}
+[18:00:44.861] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:44.886] [WEBSOCKET] Received message #7
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:44.887] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:44.887] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:44.887] [AUDIO_FRAME] Processing audio frame #7
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 8960}
+[18:00:44.888] [AUDIO] Received audio chunk 7
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 3294, 'min_value': -3563, 'avg_value': 144, 'is_silence': False, 'format': 'PCM'}
+[18:00:44.888] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:44.888] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:44.888] [WEBSOCKET_RECV] Waiting for message #8
+[18:00:44.926] [WEBSOCKET] Received message #8
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:44.927] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:44.927] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:44.927] [AUDIO_FRAME] Processing audio frame #8
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 10240}
+[18:00:44.928] [AUDIO] Received audio chunk 8
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 1687, 'min_value': -2745, 'avg_value': -241, 'is_silence': False, 'format': 'PCM'}
+[18:00:44.928] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:44.928] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:44.928] [WEBSOCKET_RECV] Waiting for message #9
+[18:00:44.959] [PYAUDIO_WRITTEN] Successfully played chunk #3
+[18:00:44.960] [PLAYBACK_GOT] Got audio chunk #4 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:44.961] [PLAYBACK] Playing chunk 3
+    Data: {'label': 'playback', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 1042, 'min_value': -1325, 'avg_value': -116, 'is_silence': False, 'format': 'PCM'}
+[18:00:44.961] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:44.961] [PYAUDIO_WRITTEN] Successfully played chunk #4
+[18:00:44.961] [PLAYBACK_GOT] Got audio chunk #5 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:44.962] [PLAYBACK] Playing chunk 4
+    Data: {'label': 'playback', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 9766, 'min_value': -10891, 'avg_value': -167, 'is_silence': False, 'format': 'PCM'}
+[18:00:44.962] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:44.962] [PYAUDIO_WRITTEN] Successfully played chunk #5
+[18:00:44.962] [PLAYBACK_GOT] Got audio chunk #6 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:44.963] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:44.967] [WEBSOCKET] Received message #9
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:44.967] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:44.968] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:44.968] [AUDIO_FRAME] Processing audio frame #9
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 11520}
+[18:00:44.968] [AUDIO] Received audio chunk 9
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 3384, 'min_value': -5284, 'avg_value': -6, 'is_silence': False, 'format': 'PCM'}
+[18:00:44.968] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:44.969] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:44.969] [WEBSOCKET_RECV] Waiting for message #10
+[18:00:45.006] [WEBSOCKET] Received message #10
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:45.007] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:45.007] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:45.007] [AUDIO_FRAME] Processing audio frame #10
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 12800}
+[18:00:45.008] [AUDIO] Received audio chunk 10
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 9200, 'min_value': -7260, 'avg_value': 297, 'is_silence': False, 'format': 'PCM'}
+[18:00:45.008] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:45.008] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:45.008] [WEBSOCKET_RECV] Waiting for message #11
+[18:00:45.047] [WEBSOCKET] Received message #11
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:45.047] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:45.048] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:45.048] [AUDIO_FRAME] Processing audio frame #11
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 14080}
+[18:00:45.048] [AUDIO] Received audio chunk 11
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 466, 'min_value': -367, 'avg_value': 103, 'is_silence': True, 'format': 'PCM'}
+[18:00:45.049] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:45.049] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:45.049] [WEBSOCKET_RECV] Waiting for message #12
+[18:00:45.060] [PYAUDIO_WRITTEN] Successfully played chunk #6
+[18:00:45.060] [PLAYBACK_GOT] Got audio chunk #7 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:45.060] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:45.061] [PYAUDIO_WRITTEN] Successfully played chunk #7
+[18:00:45.061] [PLAYBACK_GOT] Got audio chunk #8 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:45.061] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:45.086] [WEBSOCKET] Received message #12
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:45.086] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:45.086] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:45.087] [AUDIO_FRAME] Processing audio frame #12
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 15360}
+[18:00:45.087] [AUDIO] Received audio chunk 12
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 214, 'min_value': -216, 'avg_value': -2, 'is_silence': True, 'format': 'PCM'}
+[18:00:45.087] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:45.088] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:45.088] [WEBSOCKET_RECV] Waiting for message #13
+[18:00:45.127] [WEBSOCKET] Received message #13
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:45.127] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:45.128] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:45.128] [AUDIO_FRAME] Processing audio frame #13
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 16640}
+[18:00:45.129] [AUDIO] Received audio chunk 13
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 185, 'min_value': -153, 'avg_value': 0, 'is_silence': True, 'format': 'PCM'}
+[18:00:45.129] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:45.129] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:45.129] [WEBSOCKET_RECV] Waiting for message #14
+[18:00:45.158] [PYAUDIO_WRITTEN] Successfully played chunk #8
+[18:00:45.158] [PLAYBACK_GOT] Got audio chunk #9 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:45.159] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:45.159] [PYAUDIO_WRITTEN] Successfully played chunk #9
+[18:00:45.159] [PLAYBACK_GOT] Got audio chunk #10 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:45.159] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:45.160] [PYAUDIO_WRITTEN] Successfully played chunk #10
+[18:00:45.160] [PLAYBACK_GOT] Got audio chunk #11 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:45.160] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:45.166] [WEBSOCKET] Received message #14
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:45.166] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:45.166] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:45.167] [AUDIO_FRAME] Processing audio frame #14
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 17920}
+[18:00:45.167] [AUDIO] Received audio chunk 14
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 2238, 'min_value': -1844, 'avg_value': 442, 'is_silence': False, 'format': 'PCM'}
+[18:00:45.167] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:45.167] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:45.168] [WEBSOCKET_RECV] Waiting for message #15
+[18:00:45.207] [WEBSOCKET] Received message #15
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:45.208] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:45.208] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:45.208] [AUDIO_FRAME] Processing audio frame #15
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 19200}
+[18:00:45.208] [AUDIO] Received audio chunk 15
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 5727, 'min_value': -2274, 'avg_value': 729, 'is_silence': False, 'format': 'PCM'}
+[18:00:45.209] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:45.209] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:45.209] [WEBSOCKET_RECV] Waiting for message #16
+[18:00:45.247] [WEBSOCKET] Received message #16
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:45.248] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:45.248] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:45.248] [AUDIO_FRAME] Processing audio frame #16
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 20480}
+[18:00:45.248] [AUDIO] Received audio chunk 16
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 4005, 'min_value': -5216, 'avg_value': -743, 'is_silence': False, 'format': 'PCM'}
+[18:00:45.249] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:45.249] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:45.249] [WEBSOCKET_RECV] Waiting for message #17
+[18:00:45.260] [PYAUDIO_WRITTEN] Successfully played chunk #11
+[18:00:45.260] [PLAYBACK_GOT] Got audio chunk #12 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:45.260] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:45.261] [PYAUDIO_WRITTEN] Successfully played chunk #12
+[18:00:45.261] [PLAYBACK_GOT] Got audio chunk #13 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:45.261] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:45.285] [WEBSOCKET] Received message #17
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:45.286] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:45.286] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:45.286] [AUDIO_FRAME] Processing audio frame #17
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 21760}
+[18:00:45.286] [AUDIO] Received audio chunk 17
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 3325, 'min_value': -873, 'avg_value': 634, 'is_silence': False, 'format': 'PCM'}
+[18:00:45.286] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:45.287] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:45.287] [WEBSOCKET_RECV] Waiting for message #18
+[18:00:45.327] [WEBSOCKET] Received message #18
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:45.328] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:45.329] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:45.329] [AUDIO_FRAME] Processing audio frame #18
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 23040}
+[18:00:45.329] [AUDIO] Received audio chunk 18
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 2675, 'min_value': -3100, 'avg_value': -223, 'is_silence': False, 'format': 'PCM'}
+[18:00:45.330] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:45.330] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:45.330] [WEBSOCKET_RECV] Waiting for message #19
+[18:00:45.358] [PYAUDIO_WRITTEN] Successfully played chunk #13
+[18:00:45.358] [PLAYBACK_GOT] Got audio chunk #14 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:45.358] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:45.359] [PYAUDIO_WRITTEN] Successfully played chunk #14
+[18:00:45.359] [PLAYBACK_GOT] Got audio chunk #15 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:45.359] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:45.359] [PYAUDIO_WRITTEN] Successfully played chunk #15
+[18:00:45.360] [PLAYBACK_GOT] Got audio chunk #16 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:45.360] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:45.366] [WEBSOCKET] Received message #19
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:45.366] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:45.366] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:45.367] [AUDIO_FRAME] Processing audio frame #19
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 24320}
+[18:00:45.367] [AUDIO] Received audio chunk 19
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 2920, 'min_value': -2454, 'avg_value': 274, 'is_silence': False, 'format': 'PCM'}
+[18:00:45.367] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:45.367] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:45.367] [WEBSOCKET_RECV] Waiting for message #20
+[18:00:45.406] [WEBSOCKET] Received message #20
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:45.407] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:45.407] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:45.408] [AUDIO_FRAME] Processing audio frame #20
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 25600}
+[18:00:45.408] [AUDIO] Received audio chunk 20
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 2054, 'min_value': -1515, 'avg_value': 138, 'is_silence': False, 'format': 'PCM'}
+[18:00:45.409] [AUDIO_SAVED] Saved audio sample to debug_session_20250604_180037/received_20_43.wav
+[18:00:45.409] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:45.409] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:45.409] [WEBSOCKET_RECV] Waiting for message #21
+[18:00:45.447] [WEBSOCKET] Received message #21
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:45.448] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:45.448] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:45.449] [AUDIO_FRAME] Processing audio frame #21
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 26880}
+[18:00:45.449] [AUDIO] Received audio chunk 21
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 2035, 'min_value': -1293, 'avg_value': -211, 'is_silence': False, 'format': 'PCM'}
+[18:00:45.450] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:45.450] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:45.450] [WEBSOCKET_RECV] Waiting for message #22
+[18:00:45.458] [PYAUDIO_WRITTEN] Successfully played chunk #16
+[18:00:45.458] [PLAYBACK_GOT] Got audio chunk #17 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:45.459] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:45.459] [PYAUDIO_WRITTEN] Successfully played chunk #17
+[18:00:45.459] [PLAYBACK_GOT] Got audio chunk #18 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:45.459] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:45.487] [WEBSOCKET] Received message #22
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:45.488] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:45.488] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:45.488] [AUDIO_FRAME] Processing audio frame #22
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 28160}
+[18:00:45.488] [AUDIO] Received audio chunk 22
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 762, 'min_value': -466, 'avg_value': 162, 'is_silence': False, 'format': 'PCM'}
+[18:00:45.489] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:45.489] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:45.489] [WEBSOCKET_RECV] Waiting for message #23
+[18:00:45.527] [WEBSOCKET] Received message #23
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:45.527] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:45.528] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:45.528] [AUDIO_FRAME] Processing audio frame #23
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 29440}
+[18:00:45.528] [AUDIO] Received audio chunk 23
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 283, 'min_value': -274, 'avg_value': -2, 'is_silence': True, 'format': 'PCM'}
+[18:00:45.528] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:45.529] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:45.529] [WEBSOCKET_RECV] Waiting for message #24
+[18:00:45.557] [PYAUDIO_WRITTEN] Successfully played chunk #18
+[18:00:45.558] [PLAYBACK_GOT] Got audio chunk #19 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:45.558] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:45.559] [PYAUDIO_WRITTEN] Successfully played chunk #19
+[18:00:45.559] [PLAYBACK_GOT] Got audio chunk #20 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:45.559] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:45.560] [PYAUDIO_WRITTEN] Successfully played chunk #20
+[18:00:45.560] [PLAYBACK_QUEUE] Queue state
+    Data: {'items_in_queue': 3, 'chunks_played_so_far': 20}
+[18:00:45.560] [PLAYBACK_GOT] Got audio chunk #21 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:45.561] [PLAYBACK] Playing chunk 20
+    Data: {'label': 'playback', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 2035, 'min_value': -1293, 'avg_value': -211, 'is_silence': False, 'format': 'PCM'}
+[18:00:45.561] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:45.566] [WEBSOCKET] Received message #24
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:45.567] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:45.567] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:45.567] [AUDIO_FRAME] Processing audio frame #24
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 30720}
+[18:00:45.567] [AUDIO] Received audio chunk 24
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 58, 'min_value': -23, 'avg_value': 13, 'is_silence': True, 'format': 'PCM'}
+[18:00:45.568] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:45.568] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:45.568] [WEBSOCKET_RECV] Waiting for message #25
+[18:00:45.607] [WEBSOCKET] Received message #25
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:45.607] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:45.608] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:45.608] [AUDIO_FRAME] Processing audio frame #25
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 32000}
+[18:00:45.608] [AUDIO] Received audio chunk 25
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 8, 'min_value': -8, 'avg_value': -2, 'is_silence': True, 'format': 'PCM'}
+[18:00:45.608] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:45.609] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:45.609] [WEBSOCKET_RECV] Waiting for message #26
+[18:00:45.646] [WEBSOCKET] Received message #26
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:45.647] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:45.647] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:45.647] [AUDIO_FRAME] Processing audio frame #26
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 33280}
+[18:00:45.648] [AUDIO] Received audio chunk 26
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 3609, 'min_value': -2936, 'avg_value': 247, 'is_silence': False, 'format': 'PCM'}
+[18:00:45.648] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:45.648] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:45.648] [WEBSOCKET_RECV] Waiting for message #27
+[18:00:45.656] [PYAUDIO_WRITTEN] Successfully played chunk #21
+[18:00:45.656] [PLAYBACK_GOT] Got audio chunk #22 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:45.657] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:45.657] [PYAUDIO_WRITTEN] Successfully played chunk #22
+[18:00:45.657] [PLAYBACK_GOT] Got audio chunk #23 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:45.657] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:45.686] [WEBSOCKET] Received message #27
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:45.687] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:45.687] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:45.687] [AUDIO_FRAME] Processing audio frame #27
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 34560}
+[18:00:45.688] [AUDIO] Received audio chunk 27
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 5524, 'min_value': -4674, 'avg_value': 502, 'is_silence': False, 'format': 'PCM'}
+[18:00:45.688] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:45.688] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:45.689] [WEBSOCKET_RECV] Waiting for message #28
+[18:00:45.727] [WEBSOCKET] Received message #28
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:45.728] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:45.728] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:45.728] [AUDIO_FRAME] Processing audio frame #28
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 35840}
+[18:00:45.729] [AUDIO] Received audio chunk 28
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 4667, 'min_value': -4604, 'avg_value': 464, 'is_silence': False, 'format': 'PCM'}
+[18:00:45.729] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:45.729] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:45.729] [WEBSOCKET_RECV] Waiting for message #29
+[18:00:45.756] [PYAUDIO_WRITTEN] Successfully played chunk #23
+[18:00:45.757] [PLAYBACK_GOT] Got audio chunk #24 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:45.757] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:45.757] [PYAUDIO_WRITTEN] Successfully played chunk #24
+[18:00:45.758] [PLAYBACK_GOT] Got audio chunk #25 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:45.758] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:45.758] [PYAUDIO_WRITTEN] Successfully played chunk #25
+[18:00:45.759] [PLAYBACK_GOT] Got audio chunk #26 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:45.759] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:45.767] [WEBSOCKET] Received message #29
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:45.767] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:45.768] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:45.768] [AUDIO_FRAME] Processing audio frame #29
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 37120}
+[18:00:45.768] [AUDIO] Received audio chunk 29
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 3642, 'min_value': -2618, 'avg_value': 636, 'is_silence': False, 'format': 'PCM'}
+[18:00:45.769] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:45.769] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:45.769] [WEBSOCKET_RECV] Waiting for message #30
+[18:00:45.807] [WEBSOCKET] Received message #30
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:45.808] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:45.808] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:45.808] [AUDIO_FRAME] Processing audio frame #30
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 38400}
+[18:00:45.808] [AUDIO] Received audio chunk 30
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 1478, 'min_value': -1076, 'avg_value': 363, 'is_silence': False, 'format': 'PCM'}
+[18:00:45.809] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:45.809] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:45.810] [WEBSOCKET_RECV] Waiting for message #31
+[18:00:45.847] [WEBSOCKET] Received message #31
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:45.848] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:45.848] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:45.848] [AUDIO_FRAME] Processing audio frame #31
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 39680}
+[18:00:45.849] [AUDIO] Received audio chunk 31
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 457, 'min_value': -705, 'avg_value': -163, 'is_silence': False, 'format': 'PCM'}
+[18:00:45.849] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:45.849] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:45.849] [WEBSOCKET_RECV] Waiting for message #32
+[18:00:45.856] [PYAUDIO_WRITTEN] Successfully played chunk #26
+[18:00:45.856] [PLAYBACK_GOT] Got audio chunk #27 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:45.856] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:45.857] [PYAUDIO_WRITTEN] Successfully played chunk #27
+[18:00:45.857] [PLAYBACK_GOT] Got audio chunk #28 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:45.857] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:45.886] [WEBSOCKET] Received message #32
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:45.886] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:45.886] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:45.887] [AUDIO_FRAME] Processing audio frame #32
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 40960}
+[18:00:45.887] [AUDIO] Received audio chunk 32
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 1894, 'min_value': -2082, 'avg_value': -796, 'is_silence': False, 'format': 'PCM'}
+[18:00:45.887] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:45.887] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:45.887] [WEBSOCKET_RECV] Waiting for message #33
+[18:00:45.928] [WEBSOCKET] Received message #33
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:45.929] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:45.929] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:45.930] [AUDIO_FRAME] Processing audio frame #33
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 42240}
+[18:00:45.930] [AUDIO] Received audio chunk 33
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 4870, 'min_value': -2882, 'avg_value': 643, 'is_silence': False, 'format': 'PCM'}
+[18:00:45.930] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:45.931] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:45.931] [WEBSOCKET_RECV] Waiting for message #34
+[18:00:45.956] [PYAUDIO_WRITTEN] Successfully played chunk #28
+[18:00:45.957] [PLAYBACK_GOT] Got audio chunk #29 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:45.957] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:45.957] [PYAUDIO_WRITTEN] Successfully played chunk #29
+[18:00:45.958] [PLAYBACK_GOT] Got audio chunk #30 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:45.958] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:45.958] [PYAUDIO_WRITTEN] Successfully played chunk #30
+[18:00:45.958] [PLAYBACK_GOT] Got audio chunk #31 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:45.959] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:45.966] [WEBSOCKET] Received message #34
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:45.966] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:45.966] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:45.967] [AUDIO_FRAME] Processing audio frame #34
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 43520}
+[18:00:45.967] [AUDIO] Received audio chunk 34
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 2133, 'min_value': -2027, 'avg_value': -370, 'is_silence': False, 'format': 'PCM'}
+[18:00:45.967] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:45.968] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:45.968] [WEBSOCKET_RECV] Waiting for message #35
+[18:00:46.006] [WEBSOCKET] Received message #35
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:46.006] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:46.007] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:46.007] [AUDIO_FRAME] Processing audio frame #35
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 44800}
+[18:00:46.008] [AUDIO] Received audio chunk 35
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': -29, 'min_value': -493, 'avg_value': -239, 'is_silence': True, 'format': 'PCM'}
+[18:00:46.008] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:46.008] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:46.008] [WEBSOCKET_RECV] Waiting for message #36
+[18:00:46.046] [WEBSOCKET] Received message #36
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:46.046] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:46.046] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:46.047] [AUDIO_FRAME] Processing audio frame #36
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 46080}
+[18:00:46.047] [AUDIO] Received audio chunk 36
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 1330, 'min_value': -47, 'avg_value': 53, 'is_silence': False, 'format': 'PCM'}
+[18:00:46.047] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:46.048] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:46.048] [WEBSOCKET_RECV] Waiting for message #37
+[18:00:46.057] [PYAUDIO_WRITTEN] Successfully played chunk #31
+[18:00:46.058] [PLAYBACK_GOT] Got audio chunk #32 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:46.058] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:46.058] [PYAUDIO_WRITTEN] Successfully played chunk #32
+[18:00:46.058] [PLAYBACK_GOT] Got audio chunk #33 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:46.059] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:46.087] [WEBSOCKET] Received message #37
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:46.088] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:46.088] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:46.088] [AUDIO_FRAME] Processing audio frame #37
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 47360}
+[18:00:46.089] [AUDIO] Received audio chunk 37
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 339, 'min_value': -273, 'avg_value': -7, 'is_silence': True, 'format': 'PCM'}
+[18:00:46.089] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:46.089] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:46.089] [WEBSOCKET_RECV] Waiting for message #38
+[18:00:46.127] [WEBSOCKET] Received message #38
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:46.127] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:46.128] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:46.128] [AUDIO_FRAME] Processing audio frame #38
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 48640}
+[18:00:46.128] [AUDIO] Received audio chunk 38
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 2297, 'min_value': -1502, 'avg_value': 191, 'is_silence': False, 'format': 'PCM'}
+[18:00:46.129] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:46.129] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:46.129] [WEBSOCKET_RECV] Waiting for message #39
+[18:00:46.155] [PYAUDIO_WRITTEN] Successfully played chunk #33
+[18:00:46.156] [PLAYBACK_GOT] Got audio chunk #34 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:46.156] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:46.156] [PYAUDIO_WRITTEN] Successfully played chunk #34
+[18:00:46.157] [PLAYBACK_GOT] Got audio chunk #35 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:46.157] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:46.157] [PYAUDIO_WRITTEN] Successfully played chunk #35
+[18:00:46.158] [PLAYBACK_GOT] Got audio chunk #36 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:46.158] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:46.166] [WEBSOCKET] Received message #39
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:46.167] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:46.167] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:46.167] [AUDIO_FRAME] Processing audio frame #39
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 49920}
+[18:00:46.168] [AUDIO] Received audio chunk 39
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 2492, 'min_value': -2317, 'avg_value': 15, 'is_silence': False, 'format': 'PCM'}
+[18:00:46.168] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:46.168] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:46.169] [WEBSOCKET_RECV] Waiting for message #40
+[18:00:46.205] [WEBSOCKET] Received message #40
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:46.205] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:46.206] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:46.206] [AUDIO_FRAME] Processing audio frame #40
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 51200}
+[18:00:46.206] [AUDIO] Received audio chunk 40
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 1116, 'min_value': -1245, 'avg_value': 6, 'is_silence': False, 'format': 'PCM'}
+[18:00:46.207] [AUDIO_SAVED] Saved audio sample to debug_session_20250604_180037/received_40_43.wav
+[18:00:46.207] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:46.207] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:46.207] [WEBSOCKET_RECV] Waiting for message #41
+[18:00:46.247] [WEBSOCKET] Received message #41
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:46.248] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:46.248] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:46.248] [AUDIO_FRAME] Processing audio frame #41
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 52480}
+[18:00:46.249] [AUDIO] Received audio chunk 41
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 569, 'min_value': -634, 'avg_value': 6, 'is_silence': False, 'format': 'PCM'}
+[18:00:46.249] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:46.249] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:46.249] [WEBSOCKET_RECV] Waiting for message #42
+[18:00:46.256] [PYAUDIO_WRITTEN] Successfully played chunk #36
+[18:00:46.256] [PLAYBACK_GOT] Got audio chunk #37 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:46.257] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:46.257] [PYAUDIO_WRITTEN] Successfully played chunk #37
+[18:00:46.257] [PLAYBACK_GOT] Got audio chunk #38 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:46.257] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:46.286] [WEBSOCKET] Received message #42
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:46.286] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:46.286] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:46.287] [AUDIO_FRAME] Processing audio frame #42
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 53760}
+[18:00:46.287] [AUDIO] Received audio chunk 42
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 330, 'min_value': -353, 'avg_value': -5, 'is_silence': True, 'format': 'PCM'}
+[18:00:46.287] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:46.287] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:46.288] [WEBSOCKET_RECV] Waiting for message #43
+[18:00:46.326] [WEBSOCKET] Received message #43
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:46.326] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:46.327] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:46.327] [AUDIO_FRAME] Processing audio frame #43
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 55040}
+[18:00:46.327] [AUDIO] Received audio chunk 43
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 1872, 'min_value': -1298, 'avg_value': 132, 'is_silence': False, 'format': 'PCM'}
+[18:00:46.328] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:46.328] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:46.328] [WEBSOCKET_RECV] Waiting for message #44
+[18:00:46.357] [PYAUDIO_WRITTEN] Successfully played chunk #38
+[18:00:46.357] [PLAYBACK_GOT] Got audio chunk #39 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:46.357] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:46.358] [PYAUDIO_WRITTEN] Successfully played chunk #39
+[18:00:46.358] [PLAYBACK_GOT] Got audio chunk #40 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:46.358] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:46.358] [PYAUDIO_WRITTEN] Successfully played chunk #40
+[18:00:46.358] [PLAYBACK_QUEUE] Queue state
+    Data: {'items_in_queue': 3, 'chunks_played_so_far': 40}
+[18:00:46.359] [PLAYBACK_GOT] Got audio chunk #41 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:46.359] [PLAYBACK] Playing chunk 40
+    Data: {'label': 'playback', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 569, 'min_value': -634, 'avg_value': 6, 'is_silence': False, 'format': 'PCM'}
+[18:00:46.359] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:46.365] [WEBSOCKET] Received message #44
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:46.365] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:46.366] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:46.366] [AUDIO_FRAME] Processing audio frame #44
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 56320}
+[18:00:46.366] [AUDIO] Received audio chunk 44
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 993, 'min_value': -1089, 'avg_value': 0, 'is_silence': False, 'format': 'PCM'}
+[18:00:46.367] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:46.367] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:46.367] [WEBSOCKET_RECV] Waiting for message #45
+[18:00:46.406] [WEBSOCKET] Received message #45
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:46.406] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:46.406] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:46.407] [AUDIO_FRAME] Processing audio frame #45
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 57600}
+[18:00:46.407] [AUDIO] Received audio chunk 45
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 1125, 'min_value': -911, 'avg_value': -1, 'is_silence': False, 'format': 'PCM'}
+[18:00:46.407] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:46.408] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:46.408] [WEBSOCKET_RECV] Waiting for message #46
+[18:00:46.448] [WEBSOCKET] Received message #46
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:46.448] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:46.449] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:46.449] [AUDIO_FRAME] Processing audio frame #46
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 58880}
+[18:00:46.449] [AUDIO] Received audio chunk 46
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 14, 'min_value': -8, 'avg_value': 0, 'is_silence': True, 'format': 'PCM'}
+[18:00:46.450] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:46.450] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:46.450] [WEBSOCKET_RECV] Waiting for message #47
+[18:00:46.459] [PYAUDIO_WRITTEN] Successfully played chunk #41
+[18:00:46.459] [PLAYBACK_GOT] Got audio chunk #42 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:46.460] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:46.460] [PYAUDIO_WRITTEN] Successfully played chunk #42
+[18:00:46.460] [PLAYBACK_GOT] Got audio chunk #43 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:46.461] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:46.488] [WEBSOCKET] Received message #47
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:46.488] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:46.488] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:46.489] [AUDIO_FRAME] Processing audio frame #47
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 60160}
+[18:00:46.489] [AUDIO] Received audio chunk 47
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 1342, 'min_value': -1055, 'avg_value': 12, 'is_silence': False, 'format': 'PCM'}
+[18:00:46.489] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:46.490] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:46.490] [WEBSOCKET_RECV] Waiting for message #48
+[18:00:46.527] [WEBSOCKET] Received message #48
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:46.528] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:46.528] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:46.529] [AUDIO_FRAME] Processing audio frame #48
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 61440}
+[18:00:46.529] [AUDIO] Received audio chunk 48
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 1421, 'min_value': -659, 'avg_value': 76, 'is_silence': False, 'format': 'PCM'}
+[18:00:46.529] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:46.529] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:46.529] [WEBSOCKET_RECV] Waiting for message #49
+[18:00:46.557] [PYAUDIO_WRITTEN] Successfully played chunk #43
+[18:00:46.558] [PLAYBACK_GOT] Got audio chunk #44 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:46.558] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:46.558] [PYAUDIO_WRITTEN] Successfully played chunk #44
+[18:00:46.559] [PLAYBACK_GOT] Got audio chunk #45 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:46.559] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:46.559] [PYAUDIO_WRITTEN] Successfully played chunk #45
+[18:00:46.559] [PLAYBACK_GOT] Got audio chunk #46 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:46.560] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:46.567] [WEBSOCKET] Received message #49
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:46.567] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:46.568] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:46.568] [AUDIO_FRAME] Processing audio frame #49
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 62720}
+[18:00:46.568] [AUDIO] Received audio chunk 49
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 733, 'min_value': -630, 'avg_value': -153, 'is_silence': False, 'format': 'PCM'}
+[18:00:46.568] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:46.569] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:46.569] [WEBSOCKET_RECV] Waiting for message #50
+[18:00:46.606] [WEBSOCKET] Received message #50
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:46.607] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:46.607] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:46.608] [AUDIO_FRAME] Processing audio frame #50
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 64000}
+[18:00:46.608] [AUDIO] Received audio chunk 50
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 946, 'min_value': -679, 'avg_value': 4, 'is_silence': False, 'format': 'PCM'}
+[18:00:46.608] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:46.608] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:46.609] [WEBSOCKET_RECV] Waiting for message #51
+[18:00:46.647] [WEBSOCKET] Received message #51
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:46.648] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:46.648] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:46.648] [AUDIO_FRAME] Processing audio frame #51
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 65280}
+[18:00:46.649] [AUDIO] Received audio chunk 51
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 493, 'min_value': -164, 'avg_value': 252, 'is_silence': True, 'format': 'PCM'}
+[18:00:46.649] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:46.649] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:46.649] [WEBSOCKET_RECV] Waiting for message #52
+[18:00:46.657] [PYAUDIO_WRITTEN] Successfully played chunk #46
+[18:00:46.657] [PLAYBACK_GOT] Got audio chunk #47 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:46.657] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:46.658] [PYAUDIO_WRITTEN] Successfully played chunk #47
+[18:00:46.658] [PLAYBACK_GOT] Got audio chunk #48 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:46.658] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:46.687] [WEBSOCKET] Received message #52
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:46.687] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:46.687] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:46.688] [AUDIO_FRAME] Processing audio frame #52
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 66560}
+[18:00:46.688] [AUDIO] Received audio chunk 52
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 213, 'min_value': -71, 'avg_value': 109, 'is_silence': True, 'format': 'PCM'}
+[18:00:46.688] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:46.689] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:46.689] [WEBSOCKET_RECV] Waiting for message #53
+[18:00:46.727] [WEBSOCKET] Received message #53
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:46.728] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:46.728] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:46.728] [AUDIO_FRAME] Processing audio frame #53
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 67840}
+[18:00:46.729] [AUDIO] Received audio chunk 53
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 24, 'min_value': -29, 'avg_value': 0, 'is_silence': True, 'format': 'PCM'}
+[18:00:46.729] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:46.729] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:46.729] [WEBSOCKET_RECV] Waiting for message #54
+[18:00:46.757] [PYAUDIO_WRITTEN] Successfully played chunk #48
+[18:00:46.757] [PLAYBACK_GOT] Got audio chunk #49 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:46.757] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:46.758] [PYAUDIO_WRITTEN] Successfully played chunk #49
+[18:00:46.758] [PLAYBACK_GOT] Got audio chunk #50 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:46.758] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:46.758] [PYAUDIO_WRITTEN] Successfully played chunk #50
+[18:00:46.759] [PLAYBACK_GOT] Got audio chunk #51 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:46.759] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:46.766] [WEBSOCKET] Received message #54
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:46.766] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:46.766] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:46.766] [AUDIO_FRAME] Processing audio frame #54
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 69120}
+[18:00:46.767] [AUDIO] Received audio chunk 54
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 15, 'min_value': -17, 'avg_value': -2, 'is_silence': True, 'format': 'PCM'}
+[18:00:46.767] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:46.767] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:46.767] [WEBSOCKET_RECV] Waiting for message #55
+[18:00:46.807] [WEBSOCKET] Received message #55
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:46.807] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:46.808] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:46.808] [AUDIO_FRAME] Processing audio frame #55
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 70400}
+[18:00:46.808] [AUDIO] Received audio chunk 55
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 12, 'min_value': -14, 'avg_value': -3, 'is_silence': True, 'format': 'PCM'}
+[18:00:46.808] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:46.809] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:46.809] [WEBSOCKET_RECV] Waiting for message #56
+[18:00:46.846] [WEBSOCKET] Received message #56
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:46.847] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:46.847] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:46.847] [AUDIO_FRAME] Processing audio frame #56
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 71680}
+[18:00:46.848] [AUDIO] Received audio chunk 56
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 26, 'min_value': -15, 'avg_value': 5, 'is_silence': True, 'format': 'PCM'}
+[18:00:46.848] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:46.848] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:46.848] [WEBSOCKET_RECV] Waiting for message #57
+[18:00:46.855] [PYAUDIO_WRITTEN] Successfully played chunk #51
+[18:00:46.856] [PLAYBACK_GOT] Got audio chunk #52 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:46.856] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:46.856] [PYAUDIO_WRITTEN] Successfully played chunk #52
+[18:00:46.856] [PLAYBACK_GOT] Got audio chunk #53 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:46.857] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:46.887] [WEBSOCKET] Received message #57
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:46.888] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:46.888] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:46.888] [AUDIO_FRAME] Processing audio frame #57
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 72960}
+[18:00:46.888] [AUDIO] Received audio chunk 57
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 10, 'min_value': -12, 'avg_value': 0, 'is_silence': True, 'format': 'PCM'}
+[18:00:46.889] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:46.889] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:46.889] [WEBSOCKET_RECV] Waiting for message #58
+[18:00:46.928] [WEBSOCKET] Received message #58
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:46.928] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:46.929] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:46.929] [AUDIO_FRAME] Processing audio frame #58
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 74240}
+[18:00:46.929] [AUDIO] Received audio chunk 58
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 3, 'min_value': -1, 'avg_value': 1, 'is_silence': True, 'format': 'PCM'}
+[18:00:46.929] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:46.930] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:46.930] [WEBSOCKET_RECV] Waiting for message #59
+[18:00:46.955] [PYAUDIO_WRITTEN] Successfully played chunk #53
+[18:00:46.956] [PLAYBACK_GOT] Got audio chunk #54 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:46.956] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:46.956] [PYAUDIO_WRITTEN] Successfully played chunk #54
+[18:00:46.957] [PLAYBACK_GOT] Got audio chunk #55 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:46.957] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:46.957] [PYAUDIO_WRITTEN] Successfully played chunk #55
+[18:00:46.957] [PLAYBACK_GOT] Got audio chunk #56 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:46.958] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:46.965] [WEBSOCKET] Received message #59
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:46.966] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:46.966] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:46.966] [AUDIO_FRAME] Processing audio frame #59
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 75520}
+[18:00:46.966] [AUDIO] Received audio chunk 59
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 24, 'min_value': -37, 'avg_value': 0, 'is_silence': True, 'format': 'PCM'}
+[18:00:46.967] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:46.967] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:46.967] [WEBSOCKET_RECV] Waiting for message #60
+[18:00:47.007] [WEBSOCKET] Received message #60
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:47.007] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:47.007] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:47.008] [AUDIO_FRAME] Processing audio frame #60
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 76800}
+[18:00:47.008] [AUDIO] Received audio chunk 60
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 415, 'min_value': -316, 'avg_value': -1, 'is_silence': True, 'format': 'PCM'}
+[18:00:47.009] [AUDIO_SAVED] Saved audio sample to debug_session_20250604_180037/received_60_43.wav
+[18:00:47.009] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:47.009] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:47.009] [WEBSOCKET_RECV] Waiting for message #61
+[18:00:47.046] [WEBSOCKET] Received message #61
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:47.047] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:47.047] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:47.048] [AUDIO_FRAME] Processing audio frame #61
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 78080}
+[18:00:47.048] [AUDIO] Received audio chunk 61
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 12755, 'min_value': -13895, 'avg_value': -657, 'is_silence': False, 'format': 'PCM'}
+[18:00:47.048] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:47.048] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:47.049] [WEBSOCKET_RECV] Waiting for message #62
+[18:00:47.061] [PYAUDIO_WRITTEN] Successfully played chunk #56
+[18:00:47.061] [PLAYBACK_GOT] Got audio chunk #57 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:47.062] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:47.062] [PYAUDIO_WRITTEN] Successfully played chunk #57
+[18:00:47.062] [PLAYBACK_GOT] Got audio chunk #58 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:47.062] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:47.086] [WEBSOCKET] Received message #62
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:47.086] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:47.087] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:47.087] [AUDIO_FRAME] Processing audio frame #62
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 79360}
+[18:00:47.087] [AUDIO] Received audio chunk 62
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 2795, 'min_value': -4612, 'avg_value': 629, 'is_silence': False, 'format': 'PCM'}
+[18:00:47.088] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:47.088] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:47.088] [WEBSOCKET_RECV] Waiting for message #63
+[18:00:47.126] [WEBSOCKET] Received message #63
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:47.126] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:47.126] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:47.127] [AUDIO_FRAME] Processing audio frame #63
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 80640}
+[18:00:47.127] [AUDIO] Received audio chunk 63
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 27, 'min_value': -42, 'avg_value': -5, 'is_silence': True, 'format': 'PCM'}
+[18:00:47.127] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:47.128] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:47.128] [WEBSOCKET_RECV] Waiting for message #64
+[18:00:47.156] [PYAUDIO_WRITTEN] Successfully played chunk #58
+[18:00:47.156] [PLAYBACK_GOT] Got audio chunk #59 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:47.157] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:47.157] [PYAUDIO_WRITTEN] Successfully played chunk #59
+[18:00:47.157] [PLAYBACK_GOT] Got audio chunk #60 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:47.158] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:47.158] [PYAUDIO_WRITTEN] Successfully played chunk #60
+[18:00:47.158] [PLAYBACK_QUEUE] Queue state
+    Data: {'items_in_queue': 3, 'chunks_played_so_far': 60}
+[18:00:47.158] [PLAYBACK_GOT] Got audio chunk #61 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:47.158] [PLAYBACK] Playing chunk 60
+    Data: {'label': 'playback', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 12755, 'min_value': -13895, 'avg_value': -657, 'is_silence': False, 'format': 'PCM'}
+[18:00:47.159] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:47.165] [WEBSOCKET] Received message #64
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:47.166] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:47.166] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:47.166] [AUDIO_FRAME] Processing audio frame #64
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 81920}
+[18:00:47.166] [AUDIO] Received audio chunk 64
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 627, 'min_value': -797, 'avg_value': 25, 'is_silence': False, 'format': 'PCM'}
+[18:00:47.166] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:47.167] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:47.167] [WEBSOCKET_RECV] Waiting for message #65
+[18:00:47.207] [WEBSOCKET] Received message #65
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:47.208] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:47.208] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:47.208] [AUDIO_FRAME] Processing audio frame #65
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 83200}
+[18:00:47.209] [AUDIO] Received audio chunk 65
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 1705, 'min_value': -4242, 'avg_value': -689, 'is_silence': False, 'format': 'PCM'}
+[18:00:47.209] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:47.209] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:47.209] [WEBSOCKET_RECV] Waiting for message #66
+[18:00:47.246] [WEBSOCKET] Received message #66
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:47.247] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:47.247] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:47.247] [AUDIO_FRAME] Processing audio frame #66
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 84480}
+[18:00:47.247] [AUDIO] Received audio chunk 66
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 4122, 'min_value': -5992, 'avg_value': -817, 'is_silence': False, 'format': 'PCM'}
+[18:00:47.248] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:47.248] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:47.248] [WEBSOCKET_RECV] Waiting for message #67
+[18:00:47.255] [PYAUDIO_WRITTEN] Successfully played chunk #61
+[18:00:47.255] [PLAYBACK_GOT] Got audio chunk #62 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:47.255] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:47.256] [PYAUDIO_WRITTEN] Successfully played chunk #62
+[18:00:47.256] [PLAYBACK_GOT] Got audio chunk #63 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:47.256] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:47.286] [WEBSOCKET] Received message #67
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:47.286] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:47.286] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:47.287] [AUDIO_FRAME] Processing audio frame #67
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 85760}
+[18:00:47.287] [AUDIO] Received audio chunk 67
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 4286, 'min_value': -7088, 'avg_value': 365, 'is_silence': False, 'format': 'PCM'}
+[18:00:47.287] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:47.287] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:47.287] [WEBSOCKET_RECV] Waiting for message #68
+[18:00:47.327] [WEBSOCKET] Received message #68
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:47.327] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:47.327] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:47.328] [AUDIO_FRAME] Processing audio frame #68
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 87040}
+[18:00:47.328] [AUDIO] Received audio chunk 68
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 942, 'min_value': -2031, 'avg_value': -1014, 'is_silence': False, 'format': 'PCM'}
+[18:00:47.328] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:47.328] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:47.329] [WEBSOCKET_RECV] Waiting for message #69
+[18:00:47.361] [PYAUDIO_WRITTEN] Successfully played chunk #63
+[18:00:47.361] [PLAYBACK_GOT] Got audio chunk #64 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:47.362] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:47.362] [PYAUDIO_WRITTEN] Successfully played chunk #64
+[18:00:47.362] [PLAYBACK_GOT] Got audio chunk #65 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:47.362] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:47.363] [PYAUDIO_WRITTEN] Successfully played chunk #65
+[18:00:47.363] [PLAYBACK_GOT] Got audio chunk #66 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:47.363] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:47.366] [WEBSOCKET] Received message #69
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:47.366] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:47.366] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:47.366] [AUDIO_FRAME] Processing audio frame #69
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 88320}
+[18:00:47.367] [AUDIO] Received audio chunk 69
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 1938, 'min_value': -2096, 'avg_value': -116, 'is_silence': False, 'format': 'PCM'}
+[18:00:47.367] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:47.367] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:47.367] [WEBSOCKET_RECV] Waiting for message #70
+[18:00:47.407] [WEBSOCKET] Received message #70
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:47.407] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:47.408] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:47.408] [AUDIO_FRAME] Processing audio frame #70
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 89600}
+[18:00:47.408] [AUDIO] Received audio chunk 70
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 4418, 'min_value': -4750, 'avg_value': -742, 'is_silence': False, 'format': 'PCM'}
+[18:00:47.408] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:47.409] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:47.409] [WEBSOCKET_RECV] Waiting for message #71
+[18:00:47.447] [WEBSOCKET] Received message #71
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:47.447] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:47.448] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:47.448] [AUDIO_FRAME] Processing audio frame #71
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 90880}
+[18:00:47.448] [AUDIO] Received audio chunk 71
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 261, 'min_value': -596, 'avg_value': -211, 'is_silence': False, 'format': 'PCM'}
+[18:00:47.448] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:47.449] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:47.449] [WEBSOCKET_RECV] Waiting for message #72
+[18:00:47.456] [PYAUDIO_WRITTEN] Successfully played chunk #66
+[18:00:47.456] [PLAYBACK_GOT] Got audio chunk #67 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:47.456] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:47.456] [PYAUDIO_WRITTEN] Successfully played chunk #67
+[18:00:47.457] [PLAYBACK_GOT] Got audio chunk #68 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:47.457] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:47.485] [WEBSOCKET] Received message #72
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:47.485] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:47.486] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:47.486] [AUDIO_FRAME] Processing audio frame #72
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 92160}
+[18:00:47.486] [AUDIO] Received audio chunk 72
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 20, 'min_value': -14, 'avg_value': 5, 'is_silence': True, 'format': 'PCM'}
+[18:00:47.487] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:47.487] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:47.487] [WEBSOCKET_RECV] Waiting for message #73
+[18:00:47.526] [WEBSOCKET] Received message #73
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:47.526] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:47.527] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:47.527] [AUDIO_FRAME] Processing audio frame #73
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 93440}
+[18:00:47.527] [AUDIO] Received audio chunk 73
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 131, 'min_value': -164, 'avg_value': 13, 'is_silence': True, 'format': 'PCM'}
+[18:00:47.527] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:47.528] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:47.528] [WEBSOCKET_RECV] Waiting for message #74
+[18:00:47.556] [PYAUDIO_WRITTEN] Successfully played chunk #68
+[18:00:47.556] [PLAYBACK_GOT] Got audio chunk #69 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:47.557] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:47.557] [PYAUDIO_WRITTEN] Successfully played chunk #69
+[18:00:47.557] [PLAYBACK_GOT] Got audio chunk #70 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:47.558] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:47.558] [PYAUDIO_WRITTEN] Successfully played chunk #70
+[18:00:47.558] [PLAYBACK_GOT] Got audio chunk #71 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:47.558] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:47.566] [WEBSOCKET] Received message #74
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:47.567] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:47.567] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:47.567] [AUDIO_FRAME] Processing audio frame #74
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 94720}
+[18:00:47.568] [AUDIO] Received audio chunk 74
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 658, 'min_value': -2348, 'avg_value': -220, 'is_silence': False, 'format': 'PCM'}
+[18:00:47.568] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:47.568] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:47.568] [WEBSOCKET_RECV] Waiting for message #75
+[18:00:47.606] [WEBSOCKET] Received message #75
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:47.607] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:47.607] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:47.608] [AUDIO_FRAME] Processing audio frame #75
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 96000}
+[18:00:47.608] [AUDIO] Received audio chunk 75
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 1131, 'min_value': -797, 'avg_value': 283, 'is_silence': False, 'format': 'PCM'}
+[18:00:47.608] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:47.608] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:47.608] [WEBSOCKET_RECV] Waiting for message #76
+[18:00:47.647] [WEBSOCKET] Received message #76
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:47.648] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:47.648] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:47.648] [AUDIO_FRAME] Processing audio frame #76
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 97280}
+[18:00:47.649] [AUDIO] Received audio chunk 76
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 6, 'min_value': -9, 'avg_value': -2, 'is_silence': True, 'format': 'PCM'}
+[18:00:47.649] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:47.649] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:47.649] [WEBSOCKET_RECV] Waiting for message #77
+[18:00:47.659] [PYAUDIO_WRITTEN] Successfully played chunk #71
+[18:00:47.659] [PLAYBACK_GOT] Got audio chunk #72 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:47.659] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:47.659] [PYAUDIO_WRITTEN] Successfully played chunk #72
+[18:00:47.660] [PLAYBACK_GOT] Got audio chunk #73 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:47.660] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:47.686] [WEBSOCKET] Received message #77
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:47.686] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:47.686] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:47.687] [AUDIO_FRAME] Processing audio frame #77
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 98560}
+[18:00:47.687] [AUDIO] Received audio chunk 77
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 805, 'min_value': -883, 'avg_value': 12, 'is_silence': False, 'format': 'PCM'}
+[18:00:47.687] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:47.688] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:47.688] [WEBSOCKET_RECV] Waiting for message #78
+[18:00:47.726] [WEBSOCKET] Received message #78
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:47.727] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:47.727] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:47.727] [AUDIO_FRAME] Processing audio frame #78
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 99840}
+[18:00:47.728] [AUDIO] Received audio chunk 78
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 2312, 'min_value': -565, 'avg_value': 664, 'is_silence': False, 'format': 'PCM'}
+[18:00:47.728] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:47.728] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:47.729] [WEBSOCKET_RECV] Waiting for message #79
+[18:00:47.758] [PYAUDIO_WRITTEN] Successfully played chunk #73
+[18:00:47.758] [PLAYBACK_GOT] Got audio chunk #74 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:47.759] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:47.759] [PYAUDIO_WRITTEN] Successfully played chunk #74
+[18:00:47.759] [PLAYBACK_GOT] Got audio chunk #75 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:47.759] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:47.760] [PYAUDIO_WRITTEN] Successfully played chunk #75
+[18:00:47.760] [PLAYBACK_GOT] Got audio chunk #76 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:47.760] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:47.766] [WEBSOCKET] Received message #79
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:47.767] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:47.767] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:47.767] [AUDIO_FRAME] Processing audio frame #79
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 101120}
+[18:00:47.767] [AUDIO] Received audio chunk 79
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 101, 'min_value': -140, 'avg_value': 44, 'is_silence': True, 'format': 'PCM'}
+[18:00:47.768] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:47.768] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:47.768] [WEBSOCKET_RECV] Waiting for message #80
+[18:00:47.807] [WEBSOCKET] Received message #80
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:47.807] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:47.808] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:47.808] [AUDIO_FRAME] Processing audio frame #80
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 102400}
+[18:00:47.808] [AUDIO] Received audio chunk 80
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 1639, 'min_value': -3244, 'avg_value': 418, 'is_silence': False, 'format': 'PCM'}
+[18:00:47.809] [AUDIO_SAVED] Saved audio sample to debug_session_20250604_180037/received_80_43.wav
+[18:00:47.809] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:47.810] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:47.810] [WEBSOCKET_RECV] Waiting for message #81
+[18:00:47.847] [WEBSOCKET] Received message #81
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:47.847] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:47.848] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:47.848] [AUDIO_FRAME] Processing audio frame #81
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 103680}
+[18:00:47.849] [AUDIO] Received audio chunk 81
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 894, 'min_value': -1566, 'avg_value': -68, 'is_silence': False, 'format': 'PCM'}
+[18:00:47.849] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:47.849] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:47.850] [WEBSOCKET_RECV] Waiting for message #82
+[18:00:47.859] [PYAUDIO_WRITTEN] Successfully played chunk #76
+[18:00:47.859] [PLAYBACK_GOT] Got audio chunk #77 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:47.859] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:47.860] [PYAUDIO_WRITTEN] Successfully played chunk #77
+[18:00:47.860] [PLAYBACK_GOT] Got audio chunk #78 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:47.860] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:47.886] [WEBSOCKET] Received message #82
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:47.886] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:47.887] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:47.887] [AUDIO_FRAME] Processing audio frame #82
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 104960}
+[18:00:47.887] [AUDIO] Received audio chunk 82
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 1069, 'min_value': -2244, 'avg_value': -96, 'is_silence': False, 'format': 'PCM'}
+[18:00:47.887] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:47.887] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:47.888] [WEBSOCKET_RECV] Waiting for message #83
+[18:00:47.925] [WEBSOCKET] Received message #83
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:47.926] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:47.926] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:47.926] [AUDIO_FRAME] Processing audio frame #83
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 106240}
+[18:00:47.927] [AUDIO] Received audio chunk 83
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 961, 'min_value': -593, 'avg_value': 365, 'is_silence': False, 'format': 'PCM'}
+[18:00:47.927] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:47.927] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:47.927] [WEBSOCKET_RECV] Waiting for message #84
+[18:00:47.958] [PYAUDIO_WRITTEN] Successfully played chunk #78
+[18:00:47.958] [PLAYBACK_GOT] Got audio chunk #79 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:47.959] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:47.959] [PYAUDIO_WRITTEN] Successfully played chunk #79
+[18:00:47.959] [PLAYBACK_GOT] Got audio chunk #80 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:47.960] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:47.960] [PYAUDIO_WRITTEN] Successfully played chunk #80
+[18:00:47.960] [PLAYBACK_QUEUE] Queue state
+    Data: {'items_in_queue': 3, 'chunks_played_so_far': 80}
+[18:00:47.960] [PLAYBACK_GOT] Got audio chunk #81 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:47.961] [PLAYBACK] Playing chunk 80
+    Data: {'label': 'playback', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 894, 'min_value': -1566, 'avg_value': -68, 'is_silence': False, 'format': 'PCM'}
+[18:00:47.961] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:47.965] [WEBSOCKET] Received message #84
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:47.966] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:47.966] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:47.966] [AUDIO_FRAME] Processing audio frame #84
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 107520}
+[18:00:47.966] [AUDIO] Received audio chunk 84
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 188, 'min_value': -485, 'avg_value': -279, 'is_silence': True, 'format': 'PCM'}
+[18:00:47.966] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:47.967] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:47.967] [WEBSOCKET_RECV] Waiting for message #85
+[18:00:48.007] [WEBSOCKET] Received message #85
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:48.008] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:48.008] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:48.008] [AUDIO_FRAME] Processing audio frame #85
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 108800}
+[18:00:48.008] [AUDIO] Received audio chunk 85
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 49, 'min_value': -22, 'avg_value': 7, 'is_silence': True, 'format': 'PCM'}
+[18:00:48.008] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:48.008] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:48.008] [WEBSOCKET_RECV] Waiting for message #86
+[18:00:48.047] [WEBSOCKET] Received message #86
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:48.048] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:48.048] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:48.048] [AUDIO_FRAME] Processing audio frame #86
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 110080}
+[18:00:48.049] [AUDIO] Received audio chunk 86
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 15, 'min_value': -22, 'avg_value': -6, 'is_silence': True, 'format': 'PCM'}
+[18:00:48.049] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:48.049] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:48.049] [WEBSOCKET_RECV] Waiting for message #87
+[18:00:48.058] [PYAUDIO_WRITTEN] Successfully played chunk #81
+[18:00:48.058] [PLAYBACK_GOT] Got audio chunk #82 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:48.059] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:48.059] [PYAUDIO_WRITTEN] Successfully played chunk #82
+[18:00:48.059] [PLAYBACK_GOT] Got audio chunk #83 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:48.059] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:48.085] [WEBSOCKET] Received message #87
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:48.086] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:48.086] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:48.086] [AUDIO_FRAME] Processing audio frame #87
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 111360}
+[18:00:48.087] [AUDIO] Received audio chunk 87
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 9, 'min_value': -17, 'avg_value': -4, 'is_silence': True, 'format': 'PCM'}
+[18:00:48.087] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:48.087] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:48.087] [WEBSOCKET_RECV] Waiting for message #88
+[18:00:48.127] [WEBSOCKET] Received message #88
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:48.127] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:48.127] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:48.128] [AUDIO_FRAME] Processing audio frame #88
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 112640}
+[18:00:48.128] [AUDIO] Received audio chunk 88
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 22, 'min_value': -19, 'avg_value': 4, 'is_silence': True, 'format': 'PCM'}
+[18:00:48.128] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:48.128] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:48.129] [WEBSOCKET_RECV] Waiting for message #89
+[18:00:48.157] [PYAUDIO_WRITTEN] Successfully played chunk #83
+[18:00:48.158] [PLAYBACK_GOT] Got audio chunk #84 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:48.158] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:48.158] [PYAUDIO_WRITTEN] Successfully played chunk #84
+[18:00:48.159] [PLAYBACK_GOT] Got audio chunk #85 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:48.159] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:48.159] [PYAUDIO_WRITTEN] Successfully played chunk #85
+[18:00:48.159] [PLAYBACK_GOT] Got audio chunk #86 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:48.160] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:48.165] [WEBSOCKET] Received message #89
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:48.166] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:48.166] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:48.166] [AUDIO_FRAME] Processing audio frame #89
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 113920}
+[18:00:48.166] [AUDIO] Received audio chunk 89
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 2, 'min_value': 0, 'avg_value': 1, 'is_silence': True, 'format': 'PCM'}
+[18:00:48.167] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:48.167] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:48.167] [WEBSOCKET_RECV] Waiting for message #90
+[18:00:48.207] [WEBSOCKET] Received message #90
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:48.207] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:48.208] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:48.208] [AUDIO_FRAME] Processing audio frame #90
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 115200}
+[18:00:48.208] [AUDIO] Received audio chunk 90
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 2, 'min_value': 1, 'avg_value': 1, 'is_silence': True, 'format': 'PCM'}
+[18:00:48.209] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:48.209] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:48.209] [WEBSOCKET_RECV] Waiting for message #91
+[18:00:48.247] [WEBSOCKET] Received message #91
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:48.247] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:48.248] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:48.248] [AUDIO_FRAME] Processing audio frame #91
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 116480}
+[18:00:48.248] [AUDIO] Received audio chunk 91
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 0, 'min_value': 0, 'avg_value': 0, 'is_silence': True, 'format': 'PCM'}
+[18:00:48.249] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:48.249] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:48.249] [WEBSOCKET_RECV] Waiting for message #92
+[18:00:48.258] [PYAUDIO_WRITTEN] Successfully played chunk #86
+[18:00:48.258] [PLAYBACK_GOT] Got audio chunk #87 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:48.259] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:48.259] [PYAUDIO_WRITTEN] Successfully played chunk #87
+[18:00:48.259] [PLAYBACK_GOT] Got audio chunk #88 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:48.259] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:48.286] [WEBSOCKET] Received message #92
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:48.286] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:48.287] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:48.287] [AUDIO_FRAME] Processing audio frame #92
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 117760}
+[18:00:48.287] [AUDIO] Received audio chunk 92
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 0, 'min_value': 0, 'avg_value': 0, 'is_silence': True, 'format': 'PCM'}
+[18:00:48.287] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:48.288] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:48.288] [WEBSOCKET_RECV] Waiting for message #93
+[18:00:48.326] [WEBSOCKET] Received message #93
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:48.327] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:48.327] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:48.327] [AUDIO_FRAME] Processing audio frame #93
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 119040}
+[18:00:48.327] [AUDIO] Received audio chunk 93
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 0, 'min_value': 0, 'avg_value': 0, 'is_silence': True, 'format': 'PCM'}
+[18:00:48.328] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:48.328] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:48.328] [WEBSOCKET_RECV] Waiting for message #94
+[18:00:48.359] [PYAUDIO_WRITTEN] Successfully played chunk #88
+[18:00:48.359] [PLAYBACK_GOT] Got audio chunk #89 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:48.360] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:48.360] [PYAUDIO_WRITTEN] Successfully played chunk #89
+[18:00:48.360] [PLAYBACK_GOT] Got audio chunk #90 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:48.360] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:48.361] [PYAUDIO_WRITTEN] Successfully played chunk #90
+[18:00:48.361] [PLAYBACK_GOT] Got audio chunk #91 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:48.361] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:48.366] [WEBSOCKET] Received message #94
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:48.367] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:48.367] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:48.367] [AUDIO_FRAME] Processing audio frame #94
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 120320}
+[18:00:48.367] [AUDIO] Received audio chunk 94
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 0, 'min_value': 0, 'avg_value': 0, 'is_silence': True, 'format': 'PCM'}
+[18:00:48.368] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:48.368] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:48.368] [WEBSOCKET_RECV] Waiting for message #95
+[18:00:48.407] [WEBSOCKET] Received message #95
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:48.407] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:48.407] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:48.408] [AUDIO_FRAME] Processing audio frame #95
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 121600}
+[18:00:48.408] [AUDIO] Received audio chunk 95
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 0, 'min_value': 0, 'avg_value': 0, 'is_silence': True, 'format': 'PCM'}
+[18:00:48.408] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:48.408] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:48.409] [WEBSOCKET_RECV] Waiting for message #96
+[18:00:48.446] [WEBSOCKET] Received message #96
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:48.447] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:48.447] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:48.447] [AUDIO_FRAME] Processing audio frame #96
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 122880}
+[18:00:48.447] [AUDIO] Received audio chunk 96
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 0, 'min_value': 0, 'avg_value': 0, 'is_silence': True, 'format': 'PCM'}
+[18:00:48.448] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:48.448] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:48.448] [WEBSOCKET_RECV] Waiting for message #97
+[18:00:48.458] [PYAUDIO_WRITTEN] Successfully played chunk #91
+[18:00:48.458] [PLAYBACK_GOT] Got audio chunk #92 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:48.458] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:48.458] [PYAUDIO_WRITTEN] Successfully played chunk #92
+[18:00:48.459] [PLAYBACK_GOT] Got audio chunk #93 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:48.459] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:48.487] [WEBSOCKET] Received message #97
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:48.488] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:48.488] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:48.488] [AUDIO_FRAME] Processing audio frame #97
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 124160}
+[18:00:48.488] [AUDIO] Received audio chunk 97
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 0, 'min_value': 0, 'avg_value': 0, 'is_silence': True, 'format': 'PCM'}
+[18:00:48.489] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:48.489] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:48.489] [WEBSOCKET_RECV] Waiting for message #98
+[18:00:48.527] [WEBSOCKET] Received message #98
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:48.528] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:48.528] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:48.528] [AUDIO_FRAME] Processing audio frame #98
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 125440}
+[18:00:48.529] [AUDIO] Received audio chunk 98
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 0, 'min_value': 0, 'avg_value': 0, 'is_silence': True, 'format': 'PCM'}
+[18:00:48.529] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:48.529] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:48.529] [WEBSOCKET_RECV] Waiting for message #99
+[18:00:48.558] [PYAUDIO_WRITTEN] Successfully played chunk #93
+[18:00:48.558] [PLAYBACK_GOT] Got audio chunk #94 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:48.559] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:48.559] [PYAUDIO_WRITTEN] Successfully played chunk #94
+[18:00:48.559] [PLAYBACK_GOT] Got audio chunk #95 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:48.559] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:48.559] [PYAUDIO_WRITTEN] Successfully played chunk #95
+[18:00:48.560] [PLAYBACK_GOT] Got audio chunk #96 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:48.560] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:48.567] [WEBSOCKET] Received message #99
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:48.567] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:48.567] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:48.567] [AUDIO_FRAME] Processing audio frame #99
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 126720}
+[18:00:48.568] [AUDIO] Received audio chunk 99
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 0, 'min_value': 0, 'avg_value': 0, 'is_silence': True, 'format': 'PCM'}
+[18:00:48.568] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:48.568] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:48.568] [WEBSOCKET_RECV] Waiting for message #100
+[18:00:48.606] [WEBSOCKET] Received message #100
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:48.606] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:48.607] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:48.607] [AUDIO_FRAME] Processing audio frame #100
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 128000}
+[18:00:48.607] [AUDIO] Received audio chunk 100
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 0, 'min_value': 0, 'avg_value': 0, 'is_silence': True, 'format': 'PCM'}
+[18:00:48.608] [AUDIO_SAVED] Saved audio sample to debug_session_20250604_180037/received_100_43.wav
+[18:00:48.608] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:48.608] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:48.608] [WEBSOCKET_RECV] Waiting for message #101
+[18:00:48.646] [WEBSOCKET] Received message #101
+    Data: {'type': 'binary', 'size': 1319}
+[18:00:48.646] [DESERIALIZE_START] Starting deserialization of 1319 bytes
+[18:00:48.647] [DESERIALIZE_SUCCESS] Deserialized to InputAudioRawFrame
+[18:00:48.647] [AUDIO_FRAME] Processing audio frame #101
+    Data: {'frame_type': 'InputAudioRawFrame', 'audio_size': 1280, 'total_received': 129280}
+[18:00:48.647] [AUDIO] Received audio chunk 101
+    Data: {'label': 'received', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 0, 'min_value': 0, 'avg_value': 0, 'is_silence': True, 'format': 'PCM'}
+[18:00:48.647] [PCM_DIRECT] Audio is already PCM, queuing directly
+[18:00:48.647] [PLAYBACK] Queued 1280 bytes for playback
+[18:00:48.648] [WEBSOCKET_RECV] Waiting for message #102
+[18:00:48.656] [PYAUDIO_WRITTEN] Successfully played chunk #96
+[18:00:48.656] [PLAYBACK_GOT] Got audio chunk #97 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:48.657] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:48.657] [PYAUDIO_WRITTEN] Successfully played chunk #97
+[18:00:48.657] [PLAYBACK_GOT] Got audio chunk #98 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:48.658] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:48.755] [PYAUDIO_WRITTEN] Successfully played chunk #98
+[18:00:48.755] [PLAYBACK_GOT] Got audio chunk #99 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:48.756] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:48.756] [PYAUDIO_WRITTEN] Successfully played chunk #99
+[18:00:48.756] [PLAYBACK_GOT] Got audio chunk #100 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:48.756] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:48.757] [PYAUDIO_WRITTEN] Successfully played chunk #100
+[18:00:48.757] [PLAYBACK_QUEUE] Queue state
+    Data: {'items_in_queue': 1, 'chunks_played_so_far': 100}
+[18:00:48.757] [PLAYBACK_GOT] Got audio chunk #101 from queue
+    Data: {'size': 1280, 'duration_ms': 40.0}
+[18:00:48.757] [PLAYBACK] Playing chunk 100
+    Data: {'label': 'playback', 'size_bytes': 1280, 'duration_ms': 40, 'sample_count': 640, 'max_value': 0, 'min_value': 0, 'avg_value': 0, 'is_silence': True, 'format': 'PCM'}
+[18:00:48.758] [PYAUDIO_WRITE] Writing 1280 bytes to PyAudio
+[18:00:48.856] [PYAUDIO_WRITTEN] Successfully played chunk #101
+[18:00:48.959] [PLAYBACK_EMPTY] Playback queue empty, waiting...
+[18:00:51.041] [PLAYBACK_EMPTY] Playback queue empty, waiting...
+[18:00:53.122] [PLAYBACK_EMPTY] Playback queue empty, waiting...
+[18:00:55.202] [PLAYBACK_EMPTY] Playback queue empty, waiting...
+[18:00:57.283] [PLAYBACK_EMPTY] Playback queue empty, waiting...
+[18:00:59.357] [PLAYBACK_EMPTY] Playback queue empty, waiting...
+[18:01:01.446] [PLAYBACK_EMPTY] Playback queue empty, waiting...
+[18:01:03.519] [PLAYBACK_EMPTY] Playback queue empty, waiting...
+[18:01:05.596] [PLAYBACK_EMPTY] Playback queue empty, waiting...
+[18:01:07.660] [PLAYBACK_EMPTY] Playback queue empty, waiting...
+[18:01:09.733] [PLAYBACK_EMPTY] Playback queue empty, waiting...
+[18:01:11.794] [PLAYBACK_EMPTY] Playback queue empty, waiting...
+[18:01:12.562] [PLAYBACK_STOP] Setting stop flag for playback thread
+[18:01:12.563] [THREAD_JOIN] Waiting for playback thread to finish
+[18:01:12.624] [PLAYBACK_CLEANUP] Closing audio stream
+[18:01:12.760] [PLAYBACK] Playback thread ended after 101 chunks
+[18:01:12.761] [THREAD_JOINED] Playback thread finished
+[18:01:12.761] [TASKS_CANCEL] Cancelling async tasks
+[18:01:12.762] [TASKS_CANCELLED] All tasks cancelled
+[18:01:12.763] [COMPLETE] Session ended successfully
+[18:01:12.764] [CLEANUP] Starting final cleanup
+[18:01:12.765] [CLEANUP] Audio terminated
