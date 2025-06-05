@@ -11,3 +11,7 @@ logs/*
 digest.txt
 backend/src/core/pipeline/__pycache__/*
 backend/src/providers/deepgram/__pycache__/*
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
