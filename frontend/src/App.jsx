@@ -147,15 +147,21 @@ function App() {
   // Audio playback
   const playAudioQueue = async () => {
     const { audioQueue, audioContext, isPlaying } = refs.current;
-    if (isPlaying || !audioQueue.length) return;
+    if (isPlaying || !audioQueue.length || !audioContext) return;
 
     refs.current.isPlaying = true;
     updateState({ isAssistantSpeaking: true, isMicMuted: true });
 
-    while (audioQueue.length > 0) {
+    while (audioQueue.length > 0 && refs.current.audioContext) {
       const { bytes: audioData, rate } = audioQueue.shift();
 
       try {
+        // Check if AudioContext is still valid
+        if (refs.current.audioContext.state === 'closed') {
+          console.error('AudioContext is closed, cannot play audio');
+          break;
+        }
+
         const aligned = audioData.byteOffset & 1 ? new Uint8Array(audioData) : audioData;
         const int16 = new Int16Array(aligned.buffer, aligned.byteOffset, aligned.byteLength >> 1);
         const float32 = new Float32Array(int16.length);
@@ -164,12 +170,12 @@ function App() {
           float32[i] = int16[i] / 32768;
         }
 
-        const buffer = audioContext.createBuffer(1, float32.length, rate);
+        const buffer = refs.current.audioContext.createBuffer(1, float32.length, rate);
         buffer.getChannelData(0).set(float32);
 
-        const source = audioContext.createBufferSource();
+        const source = refs.current.audioContext.createBufferSource();
         source.buffer = buffer;
-        source.connect(audioContext.destination);
+        source.connect(refs.current.audioContext.destination);
 
         await new Promise(resolve => {
           source.onended = resolve;
@@ -177,6 +183,7 @@ function App() {
         });
       } catch (error) {
         console.error("Playback error:", error);
+        break;
       }
     }
 
@@ -281,15 +288,18 @@ function App() {
     }
   };
 
-  // Start conversation
+  // Start conversation - UPDATED FOR YOUR BACKEND
   const startConversation = async () => {
     try {
-      updateState({ status: 'Getting session ID...' });
-      const response = await fetch(`${CONFIG.API_BASE_URL}/api/session/new`);
-      const { session_id } = await response.json();
-      updateState({ sessionId: session_id });
+      // Reset audio-related refs before starting
+      refs.current.audioQueue = [];
+      refs.current.isPlaying = false;
+      refs.current.isAssistantSpeaking = false;
 
-      updateState({ status: 'Requesting microphone access...' });
+      // Generate session ID client-side since backend doesn't have session endpoint
+      const sessionId = crypto.randomUUID();
+      updateState({ sessionId, status: 'Requesting microphone access...' });
+
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           deviceId: state.selectedDevice,
@@ -306,7 +316,22 @@ function App() {
       await setupAudioWorklet(stream);
 
       updateState({ status: 'Connecting to server...' });
-      const ws = new WebSocket(`${CONFIG.WS_BASE_URL}/ws/audio?session=${session_id}`);
+      
+      // Build WebSocket URL with correct endpoint and parameters
+      const params = new URLSearchParams({
+        session_id: sessionId,
+        // Add any additional parameters your backend supports
+        stt_provider: 'deepgram',
+        llm_provider: 'deepinfra',
+        tts_provider: 'elevenlabs',
+        tts_voice: 'EXAVITQu4vr4xnSDxMaL',
+        tts_model: 'eleven_flash_v2_5',
+        system_prompt: 'You are a helpful assistant. Keep your responses brief and conversational.',
+        enable_interruptions: 'false',
+        vad_enabled: 'true'
+      });
+      
+      const ws = new WebSocket(`${CONFIG.WS_BASE_URL}/ws/conversation?${params}`);
       ws.binaryType = 'arraybuffer';
       
       ws.onopen = () => updateState({ 
@@ -316,12 +341,18 @@ function App() {
       });
       
       ws.onmessage = handleWebSocketMessage;
-      ws.onerror = () => updateState({ status: 'Connection error' });
-      ws.onclose = () => updateState({ 
-        isConnected: false, 
-        isRecording: false, 
-        status: 'Disconnected' 
-      });
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        updateState({ status: 'Connection error' });
+      };
+      ws.onclose = (event) => {
+        console.log('WebSocket closed:', event.code, event.reason);
+        updateState({ 
+          isConnected: false, 
+          isRecording: false, 
+          status: `Disconnected: ${event.reason || 'Connection closed'}` 
+        });
+      };
       
       refs.current.websocket = ws;
     } catch (error) {
@@ -332,11 +363,36 @@ function App() {
 
   // Stop conversation
   const stopConversation = () => {
-    const { websocket, mediaStream, audioContext } = refs.current;
+    const { websocket, mediaStream, audioContext, processor } = refs.current;
     
-    websocket?.close();
-    mediaStream?.getTracks().forEach(track => track.stop());
-    audioContext?.close();
+    // Close WebSocket
+    if (websocket) {
+      websocket.close();
+      refs.current.websocket = null;
+    }
+    
+    // Stop media stream
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(track => track.stop());
+      refs.current.mediaStream = null;
+    }
+    
+    // Disconnect processor
+    if (processor) {
+      processor.disconnect();
+      refs.current.processor = null;
+    }
+    
+    // Close audio context
+    if (audioContext && audioContext.state !== 'closed') {
+      audioContext.close();
+      refs.current.audioContext = null;
+    }
+    
+    // Clear audio queue and reset flags
+    refs.current.audioQueue = [];
+    refs.current.isPlaying = false;
+    refs.current.isAssistantSpeaking = false;
 
     updateState({
       isRecording: false,
@@ -361,7 +417,7 @@ function App() {
           <div className={`status ${isConnected ? 'connected' : 'disconnected'}`}>
             {status}
           </div>
-          {sessionId && <div className="session-id">Session: {sessionId}</div>}
+          {sessionId && <div className="session-id">Session: {sessionId.slice(0, 8)}...</div>}
         </div>
 
         <div className="controls">
