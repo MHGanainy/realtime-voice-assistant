@@ -26,6 +26,7 @@ from pathlib import Path
 import logging
 import os
 import uuid
+import aiohttp
 
 # Load environment variables
 env_path = Path(__file__).parent.parent / '.env'
@@ -39,8 +40,9 @@ logger = logging.getLogger(__name__)
 DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ELEVEN_API_KEY = os.getenv("ELEVEN_API_KEY")
+DEEPINFRA_API_KEY = os.getenv("DEEPINFRA_API_KEY")
 
-if not all([DEEPGRAM_API_KEY, OPENAI_API_KEY, ELEVEN_API_KEY]):
+if not all([DEEPGRAM_API_KEY, OPENAI_API_KEY, ELEVEN_API_KEY, DEEPINFRA_API_KEY]):
     logger.warning("Missing API keys. Please check your .env file")
 
 app = FastAPI()
@@ -94,11 +96,12 @@ async def websocket_endpoint(websocket: WebSocket):
                 serializer=ProtobufFrameSerializer(),
             )
         )
-        
+        session = aiohttp.ClientSession()
+
         # Create services using factory functions
         stt = create_stt_service("deepgram")
-        llm = create_llm_service("openai", model="gpt-3.5-turbo")
-        tts = create_tts_service("elevenlabs", voice_id="21m00Tcm4TlvDq8ikWAM")
+        llm = create_llm_service("deepinfra")
+        tts, rate = create_tts_service("deepinfra", aiohttp_session=session)
         
         # Create context using factory function
         context = create_llm_context(
@@ -117,9 +120,9 @@ async def websocket_endpoint(websocket: WebSocket):
             transport.output(),
             context_aggregator.assistant(),
         ])
-        
+        logger.info(f"TTS sample rate: {rate}")
         # Create and run task
-        task = create_pipeline_task(pipeline)
+        task = create_pipeline_task(pipeline, out_rate=rate)
         
         logger.info(f"Starting pipeline for session {session_id}")
         await pipeline_runner.run(task)
@@ -135,3 +138,4 @@ async def websocket_endpoint(websocket: WebSocket):
         raise
     finally:
         logger.info(f"Cleaning up session {session_id}")
+        await session.close()

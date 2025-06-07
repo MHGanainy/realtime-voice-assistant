@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "pcm-player": "^0.0.18",
     "protobufjs": "^7.5.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"

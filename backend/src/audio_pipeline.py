@@ -1,10 +1,14 @@
 import numpy as np
 import os
 from pipecat.services.deepgram.stt import DeepgramSTTService
+from pipecat.services.openai.stt import OpenAISTTService
 from pipecat.services.openai.llm import OpenAILLMService
+from src.deepinfra_llm import DeepInfraLLMService
 from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
 from pipecat.frames.frames import AudioRawFrame
+from pipecat.transcriptions.language import Language
+from src.deepinfra_tts import DeepInfraHttpTTSService
 import logging
 
 # Import LiveOptions if we're using Deepgram
@@ -103,6 +107,26 @@ def create_stt_service(service_name: str, **kwargs):
             api_key=api_key,
             live_options=live_options
         )
+    
+    elif service_name == "openai":
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY not set")
+        
+        # Get parameters from kwargs or use defaults
+        model = kwargs.get("model", "gpt-4o-transcribe")
+        language = kwargs.get("language", Language.EN)
+        prompt = kwargs.get("prompt", None)
+        temperature = kwargs.get("temperature", 0.0)
+        
+        return OpenAISTTService(
+            api_key=api_key,
+            model=model,
+            language=language,
+            prompt=prompt,
+            temperature=temperature
+        )
+    
     else:
         raise ValueError(f"Unknown STT service: {service_name}")
 
@@ -121,6 +145,38 @@ def create_llm_service(service_name: str, **kwargs):
             api_key=api_key,
             model=model
         )
+    
+    elif service_name == "deepinfra":
+        api_key = os.getenv("DEEPINFRA_API_KEY")
+        if not api_key:
+            raise ValueError("DEEPINFRA_API_KEY not set")
+        
+        # Get model from kwargs or use default
+        model = kwargs.get("model", "meta-llama/Meta-Llama-3.1-70B-Instruct")
+        base_url = kwargs.get("base_url", "https://api.deepinfra.com/v1/openai")
+        
+        # Extract DeepInfra-specific parameters
+        params_dict = {
+            "max_tokens": kwargs.get("max_tokens", 4096),
+            "temperature": kwargs.get("temperature", 0.7),
+            "top_p": kwargs.get("top_p", 1.0),
+            "frequency_penalty": kwargs.get("frequency_penalty", 0.0),
+            "presence_penalty": kwargs.get("presence_penalty", 0.0),
+            "stop": kwargs.get("stop", None),
+            "stream": kwargs.get("stream", True),
+            "extra": kwargs.get("extra", {})
+        }
+        
+        # Create InputParams instance
+        params = DeepInfraLLMService.InputParams(**params_dict)
+        
+        return DeepInfraLLMService(
+            api_key=api_key,
+            model=model,
+            base_url=base_url,
+            params=params
+        )
+    
     # Add more LLM services here as needed
     # elif service_name == "anthropic":
     #     api_key = os.getenv("ANTHROPIC_API_KEY")
@@ -130,28 +186,58 @@ def create_llm_service(service_name: str, **kwargs):
 
 
 def create_tts_service(service_name: str, **kwargs):
-    """Create the appropriate TTS service"""
+    """
+    Factory for TTS back-ends.
+
+    Parameters
+    ----------
+    service_name : str
+        `"elevenlabs"` (WebSocket), `"deepinfra"` (HTTP-stream), …
+    **kwargs :
+        voice_id, model, aiohttp_session, sample_rate, etc.
+    """
+    # ────────────────────────────────────────────────────────────────
+    # 1️⃣  ELEVENLABS  (unchanged, but brought here for completeness)
+    # ────────────────────────────────────────────────────────────────
     if service_name == "elevenlabs":
         api_key = os.getenv("ELEVEN_API_KEY")
         if not api_key:
             raise ValueError("ELEVEN_API_KEY not set")
-        
-        # Get voice and model from kwargs or use defaults
-        voice_id = kwargs.get("voice_id", "21m00Tcm4TlvDq8ikWAM")
-        model = kwargs.get("model", "eleven_flash_v2_5")
-        
+
         return ElevenLabsTTSService(
             api_key=api_key,
-            voice_id=voice_id,
-            model=model
-        )
-    # Add more TTS services here as needed
-    # elif service_name == "azure":
-    #     api_key = os.getenv("AZURE_SPEECH_KEY")
-    #     region = os.getenv("AZURE_SPEECH_REGION")
-    #     return AzureTTSService(api_key=api_key, region=region, **kwargs)
-    else:
-        raise ValueError(f"Unknown TTS service: {service_name}")
+            voice_id=kwargs.get("voice_id", "21m00Tcm4TlvDq8ikWAM"),
+            model=kwargs.get("model",    "eleven_flash_v2_5"),
+            sample_rate=kwargs.get("sample_rate", 16_000),
+            params=kwargs.get("params"),                    # optional
+        ), kwargs.get("sample_rate", 16_000)
+
+    # ────────────────────────────────────────────────────────────────
+    # 2️⃣  DEEP INFRA  (NEW branch)
+    # ────────────────────────────────────────────────────────────────
+    if service_name == "deepinfra":
+        api_key = os.getenv("DEEPINFRA_API_KEY")
+        if not api_key:
+            raise ValueError("DEEPINFRA_API_KEY not set")
+
+        # DeepInfraHttpTTSService *requires* an aiohttp.ClientSession
+        aiohttp_session = kwargs.get("aiohttp_session")
+        if aiohttp_session is None:
+            raise ValueError("create_tts_service('deepinfra') needs aiohttp_session=<ClientSession>")
+
+        return DeepInfraHttpTTSService(
+            api_key=api_key,
+            voice_id=kwargs.get("voice_id", "af_bella"),
+            model=kwargs.get("model",    "hexgrad/Kokoro-82M"),
+            aiohttp_session=aiohttp_session,
+            sample_rate=kwargs.get("sample_rate", 24000),          # optional
+            params=kwargs.get("params"),                    # optional (stability, speed, …)
+        ), kwargs.get("sample_rate", 24000)
+
+    # ────────────────────────────────────────────────────────────────
+    # 3️⃣  Fallback
+    # ────────────────────────────────────────────────────────────────
+    raise ValueError(f"Unknown TTS service: {service_name}")
 
 
 def create_llm_context(llm_service: str, system_prompt: str = None, **kwargs):

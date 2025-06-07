@@ -2,16 +2,17 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import protobuf from 'protobufjs';
 import './App.css';
 
-const SAMPLE_RATE = 16000;
-const CHANNELS = 1;
-const CHUNK_SIZE = 320;
-const SILENCE_THRESHOLD = 500;
-const WS_BASE_URL = 'ws://localhost:8000';
+const CONFIG = {
+  MIC_SAMPLE_RATE: 16000,
+  CHANNELS: 1,
+  CHUNK_SIZE: 320,
+  WS_BASE_URL: 'ws://localhost:8000',
+  API_BASE_URL: 'http://localhost:8000',
+  EXIT_WORDS: ['goodbye', 'bye', 'exit', 'quit']
+};
 
-// Pipecat protobuf schema (matching frames_pb2.py)
 const PIPECAT_PROTO = `
 syntax = "proto3";
-
 package pipecat;
 
 message TextFrame {
@@ -52,218 +53,165 @@ message Frame {
 `;
 
 function App() {
-  const [isRecording, setIsRecording] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
-  const [isAssistantSpeaking, setIsAssistantSpeaking] = useState(false);
-  const [sessionId, setSessionId] = useState('');
-  const [status, setStatus] = useState('Ready to start');
-  const [conversationHistory, setConversationHistory] = useState([]);
-  const [devices, setDevices] = useState([]);
-  const [selectedDevice, setSelectedDevice] = useState('');
+  const [state, setState] = useState({
+    isRecording: false,
+    isConnected: false,
+    isAssistantSpeaking: false,
+    sessionId: '',
+    status: 'Ready to start',
+    conversationHistory: [],
+    devices: [],
+    selectedDevice: '',
+    isMicMuted: false
+  });
 
-  const audioContextRef = useRef(null);
-  const mediaStreamRef = useRef(null);
-  const processorRef = useRef(null);
-  const websocketRef = useRef(null);
-  const audioQueueRef = useRef([]);
-  const isPlayingRef = useRef(false);
-  const protoRootRef = useRef(null);
-  const frameTypeRef = useRef(null);
+  const refs = useRef({
+    audioContext: null,
+    mediaStream: null,
+    processor: null,
+    websocket: null,
+    audioQueue: [],
+    isPlaying: false,
+    protoRoot: null,
+    frameType: null,
+    isAssistantSpeaking: false
+  });
+
+  // State helper
+  const updateState = (updates) => setState(prev => ({ ...prev, ...updates }));
 
   // Initialize protobuf
   useEffect(() => {
-    const initProtobuf = async () => {
-      try {
-        const root = await protobuf.parse(PIPECAT_PROTO).root;
-        protoRootRef.current = root;
-        frameTypeRef.current = root.lookupType('pipecat.Frame');
-      } catch (error) {
-        console.error('Failed to initialize protobuf:', error);
-      }
-    };
-    initProtobuf();
+    try {
+      const root = protobuf.parse(PIPECAT_PROTO).root;
+      refs.current.protoRoot = root;
+      refs.current.frameType = root.lookupType('pipecat.Frame');
+    } catch (error) {
+      console.error('Failed to initialize protobuf:', error);
+    }
   }, []);
 
-  // Get audio devices on mount
+  // Get audio devices
   useEffect(() => {
-    navigator.mediaDevices.enumerateDevices()
-      .then(devices => {
-        const audioInputs = devices.filter(device => device.kind === 'audioinput');
-        setDevices(audioInputs);
-        if (audioInputs.length > 0 && !selectedDevice) {
-          setSelectedDevice(audioInputs[0].deviceId);
+    navigator.mediaDevices.enumerateDevices().then(devices => {
+      const audioInputs = devices.filter(d => d.kind === 'audioinput');
+      updateState({ 
+        devices: audioInputs,
+        selectedDevice: audioInputs[0]?.deviceId || ''
+      });
+    });
+  }, []);
+
+  // Sync assistant speaking state
+  useEffect(() => {
+    refs.current.isAssistantSpeaking = state.isAssistantSpeaking;
+  }, [state.isAssistantSpeaking]);
+
+  // Audio encoding/decoding
+  const encodeAudioFrame = (audioData) => {
+    const { frameType } = refs.current;
+    if (!frameType) return null;
+
+    try {
+      const message = frameType.create({
+        audio: {
+          audio: audioData,
+          sampleRate: CONFIG.MIC_SAMPLE_RATE,
+          numChannels: CONFIG.CHANNELS,
         }
       });
-  }, []);
-
-  // Get session ID
-  const getSessionId = async () => {
-    try {
-      const response = await fetch('http://localhost:8000/api/session/new');
-      const data = await response.json();
-      return data.session_id;
+      return frameType.encode(message).finish();
     } catch (error) {
-      console.error('Failed to get session ID:', error);
-      throw error;
+      console.error("Encode error:", error);
+      return null;
     }
   };
 
-  // Encode audio frame to protobuf
-  const encodeAudioFrame = (audioData /* Uint8Array */) => {
-    if (!frameTypeRef.current) {
-      console.error("Protobuf not initialized");
-      return null;
-    }
-  
-    /* The JS object must use the SAME tag-order field names that
-       protobuf-js generated from frames.proto:
-         3 → audio        (bytes)
-         4 → sampleRate   (uint32)
-         5 → numChannels  (uint32)
-       id (tag 1) and name (tag 2) are omitted – that’s fine in proto3. */
-  
-    const payload = {
-      audio: {                      // <-- one-of selector (tag 2 in Frame)
-        audio: audioData,           // tag 3
-        sampleRate: SAMPLE_RATE,    // tag 4  (camelCase!)
-        numChannels: CHANNELS,      // tag 5
-      },
-    };
-  
-    // Catch schema mismatches early
-    const err = frameTypeRef.current.verify(payload);
-    if (err) {
-      console.error("Audio frame verification failed:", err);
-      return null;
-    }
-  
+  const decodeFrame = (data) => {
+    const { frameType } = refs.current;
+    if (!frameType) return null;
+
     try {
-      const message = frameTypeRef.current.create(payload);
-      return frameTypeRef.current.encode(message).finish(); // Uint8Array
-    } catch (error) {
-      console.error("Failed to encode frame:", error);
-      return null;
-    }
-  };
-  
-  
-  
-  const decodeFrame = (data /* ArrayBuffer */) => {
-    if (!frameTypeRef.current) {
-      console.error("Protobuf not initialized");
-      return null;
-    }
-  
-    try {
-      // protobufjs happily accepts a Uint8Array view
-      const decoded = frameTypeRef.current.decode(new Uint8Array(data));
-      console.log('decoded')
-      console.log(decoded)
-      // Keep bytes as Uint8Array, convert uint64 to Number, include defaults
-      const frame = frameTypeRef.current.toObject(decoded, {
+      const decoded = frameType.decode(new Uint8Array(data));
+      return frameType.toObject(decoded, {
         bytes: Uint8Array,
         longs: Number,
         defaults: true,
       });
-      console.log(frame)
-      return frame;
     } catch (error) {
-      console.error("Failed to decode frame:", error);
+      console.error("Decode error:", error);
       return null;
     }
   };
 
-  // Play audio queue
+  // Audio playback
   const playAudioQueue = async () => {
-    if (isPlayingRef.current || audioQueueRef.current.length === 0) return;
-  
-    isPlayingRef.current = true;
-    const audioContext = audioContextRef.current;
-  
-    while (audioQueueRef.current.length > 0) {
-      let audioData = audioQueueRef.current.shift();   // Uint8Array
-  
+    const { audioQueue, audioContext, isPlaying } = refs.current;
+    if (isPlaying || !audioQueue.length) return;
+
+    refs.current.isPlaying = true;
+    updateState({ isAssistantSpeaking: true, isMicMuted: true });
+
+    while (audioQueue.length > 0) {
+      const { bytes: audioData, rate } = audioQueue.shift();
+
       try {
-        // -----------------------------------------------------------------
-        // Ensure the view starts at an even address for Int16Array
-        // -----------------------------------------------------------------
-        if (audioData.byteOffset & 1) {                // odd? → realign
-          audioData = new Uint8Array(audioData);       // copy, offset = 0
+        const aligned = audioData.byteOffset & 1 ? new Uint8Array(audioData) : audioData;
+        const int16 = new Int16Array(aligned.buffer, aligned.byteOffset, aligned.byteLength >> 1);
+        const float32 = new Float32Array(int16.length);
+        
+        for (let i = 0; i < int16.length; i++) {
+          float32[i] = int16[i] / 32768;
         }
-  
-        const int16Array = new Int16Array(
-          audioData.buffer,
-          audioData.byteOffset,                        // now guaranteed even
-          audioData.byteLength >> 1
-        );
-  
-        const float32Array = new Float32Array(int16Array.length);
-        for (let i = 0; i < int16Array.length; i++) {
-          float32Array[i] = int16Array[i] / 32768;
-        }
-  
-        const audioBuffer = audioContext.createBuffer(
-          1,
-          float32Array.length,
-          SAMPLE_RATE
-        );
-        audioBuffer.getChannelData(0).set(float32Array);
-  
+
+        const buffer = audioContext.createBuffer(1, float32.length, rate);
+        buffer.getChannelData(0).set(float32);
+
         const source = audioContext.createBufferSource();
-        source.buffer = audioBuffer;
+        source.buffer = buffer;
         source.connect(audioContext.destination);
-  
-        await new Promise((resolve) => {
+
+        await new Promise(resolve => {
           source.onended = resolve;
           source.start();
         });
       } catch (error) {
-        console.error("Audio playback error:", error);
+        console.error("Playback error:", error);
       }
     }
-  
-    isPlayingRef.current = false;
-    setIsAssistantSpeaking(false);
-    setStatus("Ready for next input");
+
+    refs.current.isPlaying = false;
+    updateState({ isAssistantSpeaking: false, isMicMuted: false, status: "Ready for next input" });
   };
-  
 
-  // Process audio worklet
+  // Audio worklet setup
   const setupAudioWorklet = async (stream) => {
-    const audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
-    audioContextRef.current = audioContext;
+    const audioContext = new AudioContext({ sampleRate: CONFIG.MIC_SAMPLE_RATE });
+    refs.current.audioContext = audioContext;
 
-    // Create worklet processor code
     const processorCode = `
       class AudioProcessor extends AudioWorkletProcessor {
         constructor() {
           super();
-          this.bufferSize = 320;
           this.buffer = [];
         }
 
-        process(inputs, outputs, parameters) {
-          const input = inputs[0];
-          if (input && input[0]) {
-            const samples = input[0];
+        process(inputs) {
+          const input = inputs[0]?.[0];
+          if (!input) return true;
+          
+          for (const sample of input) {
+            this.buffer.push(sample);
             
-            for (let i = 0; i < samples.length; i++) {
-              this.buffer.push(samples[i]);
-              
-              if (this.buffer.length >= this.bufferSize) {
-                const int16Buffer = new Int16Array(this.bufferSize);
-                for (let j = 0; j < this.bufferSize; j++) {
-                  const s = Math.max(-1, Math.min(1, this.buffer[j]));
-                  int16Buffer[j] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-                }
-                
-                this.port.postMessage({
-                  type: 'audio',
-                  data: int16Buffer.buffer
-                });
-                
-                this.buffer = [];
+            if (this.buffer.length >= ${CONFIG.CHUNK_SIZE}) {
+              const int16 = new Int16Array(${CONFIG.CHUNK_SIZE});
+              for (let i = 0; i < ${CONFIG.CHUNK_SIZE}; i++) {
+                const s = Math.max(-1, Math.min(1, this.buffer[i]));
+                int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
               }
+              
+              this.port.postMessage({ type: 'audio', data: int16.buffer });
+              this.buffer = [];
             }
           }
           return true;
@@ -273,141 +221,136 @@ function App() {
     `;
 
     const blob = new Blob([processorCode], { type: 'application/javascript' });
-    const url = URL.createObjectURL(blob);
-    await audioContext.audioWorklet.addModule(url);
+    await audioContext.audioWorklet.addModule(URL.createObjectURL(blob));
 
     const source = audioContext.createMediaStreamSource(stream);
     const processor = new AudioWorkletNode(audioContext, 'audio-processor');
     
     processor.port.onmessage = (event) => {
-      if (event.data.type === 'audio' && !isAssistantSpeaking && websocketRef.current?.readyState === WebSocket.OPEN) {
-        // Encode and send audio frame
+      if (event.data.type === 'audio' && 
+          !refs.current.isAssistantSpeaking && 
+          refs.current.websocket?.readyState === WebSocket.OPEN) {
         const encoded = encodeAudioFrame(new Uint8Array(event.data.data));
-        if (encoded) {
-          websocketRef.current.send(encoded);
-        }
+        if (encoded) refs.current.websocket.send(encoded);
       }
     };
 
     source.connect(processor);
     processor.connect(audioContext.destination);
-    processorRef.current = processor;
+    refs.current.processor = processor;
+  };
+
+  // WebSocket message handler
+  const handleWebSocketMessage = async (event) => {
+    if (!(event.data instanceof ArrayBuffer)) return;
+
+    const frame = decodeFrame(event.data);
+    if (!frame) return;
+
+    if (frame.audio) {
+      updateState({ 
+        isAssistantSpeaking: true, 
+        isMicMuted: true, 
+        status: 'Assistant speaking...' 
+      });
+      refs.current.audioQueue.push({ 
+        bytes: frame.audio.audio, 
+        rate: frame.audio.sampleRate 
+      });
+      playAudioQueue();
+    } else if (frame.text) {
+      updateState(prev => ({
+        conversationHistory: [...prev.conversationHistory, { 
+          speaker: 'assistant', 
+          text: frame.text.text 
+        }]
+      }));
+    } else if (frame.transcription) {
+      const text = frame.transcription.text;
+      updateState(prev => ({
+        conversationHistory: [...prev.conversationHistory, { 
+          speaker: 'user', 
+          text 
+        }]
+      }));
+      
+      if (CONFIG.EXIT_WORDS.some(word => text.toLowerCase().includes(word))) {
+        updateState({ status: 'Goodbye! Thanks for chatting!' });
+        setTimeout(stopConversation, 2000);
+      }
+    }
   };
 
   // Start conversation
   const startConversation = async () => {
     try {
-      setStatus('Getting session ID...');
-      const newSessionId = await getSessionId();
-      setSessionId(newSessionId);
+      updateState({ status: 'Getting session ID...' });
+      const response = await fetch(`${CONFIG.API_BASE_URL}/api/session/new`);
+      const { session_id } = await response.json();
+      updateState({ sessionId: session_id });
 
-      setStatus('Requesting microphone access...');
+      updateState({ status: 'Requesting microphone access...' });
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          deviceId: selectedDevice,
-          channelCount: CHANNELS,
-          sampleRate: SAMPLE_RATE,
+          deviceId: state.selectedDevice,
+          channelCount: CONFIG.CHANNELS,
+          sampleRate: CONFIG.MIC_SAMPLE_RATE,
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true
         }
       });
-      mediaStreamRef.current = stream;
+      refs.current.mediaStream = stream;
 
-      setStatus('Setting up audio processing...');
+      updateState({ status: 'Setting up audio processing...' });
       await setupAudioWorklet(stream);
 
-      setStatus('Connecting to server...');
-      const ws = new WebSocket(`${WS_BASE_URL}/ws/audio?session=${newSessionId}`);
-      websocketRef.current = ws;
-
+      updateState({ status: 'Connecting to server...' });
+      const ws = new WebSocket(`${CONFIG.WS_BASE_URL}/ws/audio?session=${session_id}`);
       ws.binaryType = 'arraybuffer';
-
-      ws.onopen = () => {
-        setIsConnected(true);
-        setIsRecording(true);
-        setStatus('Connected! Speak naturally...');
-      };
-
-      ws.onmessage = async (event) => {
-        if (event.data instanceof ArrayBuffer) {
-          try {
-            const frame = decodeFrame(event.data);
-            
-            if (frame) {
-              if (frame.audio) {
-                if (!isAssistantSpeaking) {
-                  setIsAssistantSpeaking(true);
-                  setStatus('Assistant speaking...');
-                }
-                
-                // The audio field is already a Uint8Array from protobufjs
-                audioQueueRef.current.push(frame.audio.audio);
-                playAudioQueue();
-              } else if (frame.text) {
-                // Handle text response from assistant
-                console.log('Assistant:', frame.text.text);
-                setConversationHistory(prev => [...prev, { 
-                  speaker: 'assistant', 
-                  text: frame.text.text 
-                }]);
-              } else if (frame.transcription) {
-                // Handle transcription of user speech
-                console.log('User said:', frame.transcription.text);
-                setConversationHistory(prev => [...prev, { 
-                  speaker: 'user', 
-                  text: frame.transcription.text 
-                }]);
-                
-                // Check for exit commands
-                const text = frame.transcription.text.toLowerCase();
-                if (['goodbye', 'bye', 'exit', 'quit'].some(word => text.includes(word))) {
-                  setStatus('Goodbye! Thanks for chatting!');
-                  setTimeout(() => stopConversation(), 2000);
-                }
-              }
-            }
-          } catch (error) {
-            console.error('Message parsing error:', error);
-          }
-        }
-      };
-
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        setStatus('Connection error');
-      };
-
-      ws.onclose = () => {
-        setIsConnected(false);
-        setIsRecording(false);
-        setStatus('Disconnected');
-      };
-
+      
+      ws.onopen = () => updateState({ 
+        isConnected: true, 
+        isRecording: true, 
+        status: 'Connected! Speak naturally...' 
+      });
+      
+      ws.onmessage = handleWebSocketMessage;
+      ws.onerror = () => updateState({ status: 'Connection error' });
+      ws.onclose = () => updateState({ 
+        isConnected: false, 
+        isRecording: false, 
+        status: 'Disconnected' 
+      });
+      
+      refs.current.websocket = ws;
     } catch (error) {
       console.error('Failed to start:', error);
-      setStatus(`Error: ${error.message}`);
+      updateState({ status: `Error: ${error.message}` });
     }
   };
 
   // Stop conversation
   const stopConversation = () => {
-    if (websocketRef.current) {
-      websocketRef.current.close();
-    }
+    const { websocket, mediaStream, audioContext } = refs.current;
     
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach(track => track.stop());
-    }
-    
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-    }
+    websocket?.close();
+    mediaStream?.getTracks().forEach(track => track.stop());
+    audioContext?.close();
 
-    setIsRecording(false);
-    setIsConnected(false);
-    setStatus('Conversation ended');
+    updateState({
+      isRecording: false,
+      isConnected: false,
+      isAssistantSpeaking: false,
+      isMicMuted: false,
+      status: 'Conversation ended'
+    });
   };
+
+  const { 
+    isRecording, isConnected, isAssistantSpeaking, sessionId, 
+    status, conversationHistory, devices, selectedDevice, isMicMuted 
+  } = state;
 
   return (
     <div className="app">
@@ -418,9 +361,7 @@ function App() {
           <div className={`status ${isConnected ? 'connected' : 'disconnected'}`}>
             {status}
           </div>
-          {sessionId && (
-            <div className="session-id">Session: {sessionId}</div>
-          )}
+          {sessionId && <div className="session-id">Session: {sessionId}</div>}
         </div>
 
         <div className="controls">
@@ -428,7 +369,7 @@ function App() {
             <label>Audio Device:</label>
             <select 
               value={selectedDevice} 
-              onChange={(e) => setSelectedDevice(e.target.value)}
+              onChange={(e) => updateState({ selectedDevice: e.target.value })}
               disabled={isRecording}
             >
               {devices.map(device => (
@@ -448,8 +389,8 @@ function App() {
         </div>
 
         <div className="indicators">
-          <div className={`indicator ${isRecording ? 'active' : ''}`}>
-            🎤 {isRecording ? 'Recording' : 'Not Recording'}
+          <div className={`indicator ${isRecording && !isMicMuted ? 'active' : ''}`}>
+            🎤 {isRecording ? (isMicMuted ? 'Mic Muted' : 'Recording') : 'Not Recording'}
           </div>
           <div className={`indicator ${isAssistantSpeaking ? 'active' : ''}`}>
             🤖 {isAssistantSpeaking ? 'Assistant Speaking' : 'Assistant Idle'}
@@ -461,6 +402,7 @@ function App() {
           <ul>
             <li>Speak naturally, the assistant will respond</li>
             <li>Say 'goodbye' to end the conversation</li>
+            <li>The microphone automatically mutes when the assistant speaks</li>
             <li>The conversation will continue automatically</li>
           </ul>
         </div>

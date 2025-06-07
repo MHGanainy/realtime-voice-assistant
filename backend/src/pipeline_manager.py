@@ -57,13 +57,13 @@ def create_audio_pipeline(
     
     return Pipeline(stages)
 
-def create_pipeline_task(pipeline: Pipeline) -> PipelineTask:
-    """Create a pipeline task with default parameters"""
+def create_pipeline_task(pipeline: Pipeline, *, out_rate: int) -> PipelineTask:
+    logger.info(f"Creating pipeline task with output rate {out_rate}")
     return PipelineTask(
         pipeline,
         params=PipelineParams(
             audio_in_sample_rate=16000,
-            audio_out_sample_rate=16000,
+            audio_out_sample_rate=out_rate,
             allow_interruptions=True,
             enable_metrics=True,
         )
