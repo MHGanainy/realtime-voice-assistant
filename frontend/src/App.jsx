@@ -323,9 +323,10 @@ function App() {
         // Add any additional parameters your backend supports
         stt_provider: 'deepgram',
         llm_provider: 'deepinfra',
-        tts_provider: 'elevenlabs',
-        tts_voice: 'EXAVITQu4vr4xnSDxMaL',
-        tts_model: 'eleven_flash_v2_5',
+        tts_provider: 'deepinfra',
+        // tts_provider: 'elevenlabs',
+        // tts_voice: 'EXAVITQu4vr4xnSDxMaL',
+        // tts_model: 'eleven_flash_v2_5',
         system_prompt: 'You are a helpful assistant. Keep your responses brief and conversational.',
         enable_interruptions: 'false',
         vad_enabled: 'true'
