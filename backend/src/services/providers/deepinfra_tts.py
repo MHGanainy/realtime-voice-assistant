@@ -1,49 +1,8 @@
-from __future__ import annotations
-
-"""pipecat DeepInfra TTS service
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-A **drop‑in** substitute for :class:`pipecat.services.elevenlabs.tts.ElevenLabsHttpTTSService`
-that talks to the DeepInfra *ElevenLabs‑compatible* **inference** endpoint:
-
-```
-POST /v1/inference/{model_id}
-```
-
-The contract is *almost* identical – audio arrives as base‑64 chunks in a
-newline‑delimited stream – but the URL, auth header and timestamp payload names
-are different, so we override just enough of the parent class to adapt.
-
-*   Default model  : ``hexgrad/Kokoro-82M`` (open‑weight, 82 M params)
-*   Default voice  : whatever you pass via ``voice_id`` (DeepInfra exposes the
-    same voice catalogue as ElevenLabs)
-*   Default format : raw 16‑bit **PCM** streamed at the instance *sample_rate*
-
-Because everything else (sentence aggregation, metrics, VAD‑driven stop frames,
-word‑timestamp fan‑out, …) is already implemented upstream, this file is only a
-thin shim – ~150 LOC.
-
-Example
--------
-```python
-import os, asyncio, aiohttp
-from src.deepinfra_tts import DeepInfraHttpTTSService
-
-async def demo():
-    async with aiohttp.ClientSession() as session:
-        tts = DeepInfraHttpTTSService(
-            api_key=os.environ["DEEPINFRA_API_KEY"],  # bearer‑token, not xi‑key
-            voice_id="af_bella",
-            aiohttp_session=session,
-            sample_rate=24_000,
-        )
-        async for frame in tts.run_tts("Hello from DeepInfra!"):
-            print(frame)
-
-asyncio.run(demo())
-```
 """
-
-from typing import Optional, AsyncGenerator, List, Tuple, Mapping
+DeepInfra TTS Service
+HTTP-stream TTS for DeepInfra's ElevenLabs-compatible endpoint
+"""
+from typing import Optional, AsyncGenerator
 import base64
 import json
 
@@ -58,20 +17,12 @@ from pipecat.frames.frames import (
     ErrorFrame,
 )
 from pipecat.processors.frame_processor import FrameDirection
-from pipecat.services.elevenlabs.tts import (
-    ELEVENLABS_MULTILINGUAL_MODELS,
-    ElevenLabsHttpTTSService,
-)
+from pipecat.services.elevenlabs.tts import ElevenLabsHttpTTSService
 from pipecat.utils.tracing.service_decorators import traced_tts
-
-__all__ = ["DeepInfraHttpTTSService"]
 
 
 class DeepInfraHttpTTSService(ElevenLabsHttpTTSService):
-    """HTTP‑stream TTS for DeepInfra’s ElevenLabs‑compatible endpoint."""
-
-    # Re‑export so callers can use the same constant they expect from the parent
-    MULTILINGUAL_MODELS = ELEVENLABS_MULTILINGUAL_MODELS
+    """HTTP-stream TTS for DeepInfra's ElevenLabs-compatible endpoint"""
 
     def __init__(
         self,
@@ -93,7 +44,7 @@ class DeepInfraHttpTTSService(ElevenLabsHttpTTSService):
 
         # Parent constructor wires metrics, sentence aggregation, etc.
         super().__init__(
-            api_key=api_key,               # stored but *not* forwarded as xi‑key
+            api_key=api_key,
             voice_id=voice_id,
             aiohttp_session=aiohttp_session,
             model=model,
@@ -102,19 +53,15 @@ class DeepInfraHttpTTSService(ElevenLabsHttpTTSService):
             **kwargs,
         )
 
-    # ---------------------------------------------------------------------
-    # Internal helpers
-    # ---------------------------------------------------------------------
-    
     def _build_request(self, text: str):
-        """Return (url, payload, headers) for a DeepInfra inference call."""
+        """Return (url, payload, headers) for a DeepInfra inference call"""
         url = f"{self._base_url}/v1/inference/{self._model_name}"
         payload = {
             "text": text,
             "preset_voice": [self._voice_id],
-            "output_format": "pcm",            # Always ask for raw PCM
+            "output_format": "pcm",
             "stream": True,
-            "return_timestamps": False,        # Set to False for raw audio streaming
+            "return_timestamps": False,
         }
         headers = {
             "Authorization": f"bearer {self._api_key}",
@@ -122,18 +69,9 @@ class DeepInfraHttpTTSService(ElevenLabsHttpTTSService):
         }
         return url, payload, headers
 
-    # ---------------------------------------------------------------------
-    # Main generation routine – handles both JSON-lines and raw audio bytes
-    # ---------------------------------------------------------------------
-
     @traced_tts
     async def run_tts(self, text: str):  # type: ignore[override]
-        """Yield frames from DeepInfra.
-
-        DeepInfra streams raw PCM when output_format is "pcm" and return_timestamps is False.
-        When return_timestamps is True, it sends NDJSON with base64 audio and word timings.
-        """
-
+        """Yield frames from DeepInfra"""
         url, payload, headers = self._build_request(text)
 
         try:
@@ -179,7 +117,7 @@ class DeepInfraHttpTTSService(ElevenLabsHttpTTSService):
 
                             # Process word timestamps if present
                             if "words" in data and data["words"]:
-                                word_times: List[Tuple[str, float]] = []
+                                word_times = []
                                 for w in data["words"]:
                                     start = float(w.get("start", 0))
                                     end = float(w.get("end", start))

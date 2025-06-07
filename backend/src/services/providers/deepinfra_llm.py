@@ -1,4 +1,3 @@
-# backend/src/services/deepinfra_llm.py
 """
 DeepInfra LLM Service for Pipecat
 Provides access to Llama and other models through DeepInfra's API
@@ -15,15 +14,11 @@ from pydantic import BaseModel, Field
 
 from pipecat.frames.frames import (
     Frame,
-    FunctionCallInProgressFrame,
-    FunctionCallResultFrame,
-    FunctionCallCancelFrame,
     LLMFullResponseEndFrame,
     LLMFullResponseStartFrame,
     LLMMessagesFrame,
     LLMTextFrame,
     LLMUpdateSettingsFrame,
-    UserImageRawFrame,
     VisionImageRawFrame,
 )
 from pipecat.metrics.metrics import LLMTokenUsage
@@ -55,11 +50,7 @@ class DeepInfraContextAggregatorPair:
 
 
 class DeepInfraLLMService(LLMService):
-    """This class implements inference with DeepInfra's AI models.
-    
-    DeepInfra supports various open-source models including Llama.
-    The API is OpenAI-compatible, making integration straightforward.
-    """
+    """DeepInfra LLM Service implementation"""
 
     class InputParams(BaseModel):
         max_tokens: Optional[int] = Field(default_factory=lambda: 4096, ge=1)
@@ -117,7 +108,7 @@ class DeepInfraLLMService(LLMService):
         user_params: LLMUserAggregatorParams = LLMUserAggregatorParams(),
         assistant_params: LLMAssistantAggregatorParams = LLMAssistantAggregatorParams(),
     ) -> DeepInfraContextAggregatorPair:
-        """Create an instance of DeepInfraContextAggregatorPair from an OpenAILLMContext."""
+        """Create context aggregator pair"""
         context.set_llm_adapter(self.get_llm_adapter())
         user = DeepInfraUserContextAggregator(context, params=user_params)
         assistant = DeepInfraAssistantContextAggregator(context, params=assistant_params)
@@ -174,8 +165,6 @@ class DeepInfraLLMService(LLMService):
                 
             if context.tools:
                 params["tools"] = context.tools
-                # DeepInfra supports "none" and "auto" for tool_choice
-                # Default to "auto" if tools are present
                 params["tool_choice"] = "auto"
                 
             params.update(self._settings["extra"])
@@ -211,14 +200,6 @@ class DeepInfraLLMService(LLMService):
                                     if content != "</s>":
                                         await self.push_frame(LLMTextFrame(content))
                                         completion_tokens_estimate += self._estimate_tokens(content)
-                                
-                                # Handle function calls (if supported by the model)
-                                if "tool_calls" in delta and delta["tool_calls"]:
-                                    for tool_call in delta["tool_calls"]:
-                                        if tool_call and "function" in tool_call:
-                                            await self._handle_function_call(
-                                                context, tool_call["function"]
-                                            )
                                 
                                 # Check for finish reason
                                 finish_reason = choice.get("finish_reason")
@@ -269,27 +250,6 @@ class DeepInfraLLMService(LLMService):
                 completion_tokens=comp_tokens
             )
 
-    async def _handle_function_call(self, context: OpenAILLMContext, function_data: dict):
-        """Handle function call from the model"""
-        if "name" in function_data and "arguments" in function_data:
-            try:
-                arguments = json.loads(function_data["arguments"])
-                tool_call_id = f"call_{self._generate_call_id()}"
-                
-                await self.call_function(
-                    context=context,
-                    tool_call_id=tool_call_id,
-                    function_name=function_data["name"],
-                    arguments=arguments,
-                )
-            except json.JSONDecodeError:
-                logger.warning(f"Failed to parse function arguments: {function_data['arguments']}")
-
-    def _generate_call_id(self) -> str:
-        """Generate a unique call ID for function calls"""
-        import uuid
-        return str(uuid.uuid4())[:8]
-
     def _estimate_tokens(self, text: str) -> int:
         """Estimate token count for a piece of text"""
         return int(len(re.split(r"[^\w]+", text)) * 1.3)
@@ -339,62 +299,4 @@ class DeepInfraUserContextAggregator(LLMUserContextAggregator):
 
 
 class DeepInfraAssistantContextAggregator(LLMAssistantContextAggregator):
-    
-    async def handle_function_call_in_progress(self, frame: FunctionCallInProgressFrame):
-        self._context.add_message(
-            {
-                "role": "assistant",
-                "tool_calls": [
-                    {
-                        "id": frame.tool_call_id,
-                        "function": {
-                            "name": frame.function_name,
-                            "arguments": json.dumps(frame.arguments),
-                        },
-                        "type": "function",
-                    }
-                ],
-            }
-        )
-        self._context.add_message(
-            {
-                "role": "tool",
-                "content": "IN_PROGRESS",
-                "tool_call_id": frame.tool_call_id,
-            }
-        )
-
-    async def handle_function_call_result(self, frame: FunctionCallResultFrame):
-        if frame.result:
-            result = json.dumps(frame.result)
-            await self._update_function_call_result(frame.function_name, frame.tool_call_id, result)
-        else:
-            await self._update_function_call_result(
-                frame.function_name, frame.tool_call_id, "COMPLETED"
-            )
-
-    async def handle_function_call_cancel(self, frame: FunctionCallCancelFrame):
-        await self._update_function_call_result(
-            frame.function_name, frame.tool_call_id, "CANCELLED"
-        )
-
-    async def _update_function_call_result(
-        self, function_name: str, tool_call_id: str, result: Any
-    ):
-        for message in self._context.messages:
-            if (
-                message.get("role") == "tool"
-                and message.get("tool_call_id") == tool_call_id
-            ):
-                message["content"] = result
-
-    async def handle_user_image_frame(self, frame: UserImageRawFrame):
-        await self._update_function_call_result(
-            frame.request.function_name, frame.request.tool_call_id, "COMPLETED"
-        )
-        self._context.add_image_frame_message(
-            format=frame.format,
-            size=frame.size,
-            image=frame.image,
-            text=frame.request.context,
-        )
+    pass
