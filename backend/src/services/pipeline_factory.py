@@ -92,14 +92,14 @@ class PipelineFactory:
             # Build pipeline with conversation processors at key positions
             pipeline = Pipeline([
                 transport.input(),
-                # create_conversation_processor(conversation_id, "input"),
+                create_conversation_processor(conversation_id, "input"),
                 stt,
-                # create_conversation_processor(conversation_id, "post-stt"),
+                create_conversation_processor(conversation_id, "post-stt"),
                 context_aggregator.user(),
                 llm,
-                # create_conversation_processor(conversation_id, "post-llm"),
+                create_conversation_processor(conversation_id, "post-llm"),
                 tts,
-                # create_conversation_processor(conversation_id, "post-tts"),
+                create_conversation_processor(conversation_id, "post-tts"),
                 transport.output(),
                 context_aggregator.assistant(),
             ])
