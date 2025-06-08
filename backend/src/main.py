@@ -155,7 +155,8 @@ async def websocket_conversation(
     vad_enabled: Optional[bool] = Query(None, description="Enable voice activity detection"),
     vad_threshold: Optional[float] = Query(None, description="VAD threshold"),
     sample_rate: Optional[int] = Query(None, description="Audio sample rate"),
-    channels: Optional[int] = Query(None, description="Audio channels")
+    channels: Optional[int] = Query(None, description="Audio channels"),
+    enable_processors: Optional[bool] = Query(True, description="Enable conversation processors for metrics and transcription tracking")
 ):
     """WebSocket endpoint for voice conversations."""
     await websocket_handler.handle_connection(websocket, session_id)

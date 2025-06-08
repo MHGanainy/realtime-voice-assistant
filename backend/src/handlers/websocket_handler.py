@@ -67,6 +67,9 @@ class WebSocketConnectionHandler:
             
             config = self._build_config_from_params(websocket)
             
+            # Get enable_processors parameter from query params
+            enable_processors = websocket.query_params.get("enable_processors", "true").lower() == "true"
+            
             conversation = await self.conversation_manager.create_conversation(
                 participant=participant,
                 config=config
@@ -77,11 +80,13 @@ class WebSocketConnectionHandler:
             
             transport = self._create_transport(websocket, config)
             
+            # Pass enable_processors to pipeline factory
             pipeline, output_sample_rate = await self.pipeline_factory.create_pipeline(
                 config=config,
                 transport=transport,
                 conversation_id=conversation.id,
-                aiohttp_session=aiohttp_session
+                aiohttp_session=aiohttp_session,
+                enable_processors=enable_processors  # Pass the parameter
             )
             
             self._active_connections[connection_id] = {
@@ -91,7 +96,8 @@ class WebSocketConnectionHandler:
                 "transport": transport,
                 "pipeline": pipeline,
                 "aiohttp_session": aiohttp_session,
-                "connected_at": datetime.utcnow()
+                "connected_at": datetime.utcnow(),
+                "processors_enabled": enable_processors
             }
             
             success = await self.conversation_manager.start_conversation(
@@ -110,7 +116,10 @@ class WebSocketConnectionHandler:
                 output_sample_rate=output_sample_rate
             )
             
-            logger.info(f"Starting pipeline for conversation {conversation.id}")
+            logger.info(
+                f"Starting pipeline for conversation {conversation.id} "
+                f"(processors {'enabled' if enable_processors else 'disabled'})"
+            )
             
             await self.conversation_manager.run_pipeline_for_conversation(
                 conversation.id,
@@ -196,7 +205,8 @@ class WebSocketConnectionHandler:
                 f"connection:{connection_id}:closed",
                 connection_id=connection_id,
                 session_id=conversation.participant.session_id,
-                reason="client_disconnect"
+                reason="client_disconnect",
+                processors_enabled=conn_info.get("processors_enabled", True)
             )
     
     async def _handle_error(self, connection_id: str, error: Exception):

@@ -51,7 +51,7 @@ def create_stt_service(service_name: str, **kwargs):
         if not api_key:
             raise ValueError("OPENAI_API_KEY not set")
         
-        model = kwargs.get("model", "whisper-1")
+        model = kwargs.get("model", "gpt-4o-transcribe")
         language = kwargs.get("language", Language.EN)
         
         return OpenAISTTService(

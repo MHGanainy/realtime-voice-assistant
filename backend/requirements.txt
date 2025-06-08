@@ -11,3 +11,7 @@ websockets
 python-dotenv
 aioquic
 pyee
+pydantic-settings
+aiohttp
+protobuf
+onnxruntime

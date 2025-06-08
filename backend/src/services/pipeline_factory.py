@@ -1,5 +1,5 @@
 """
-Pipeline factory for creating conversation pipelines with frame observers.
+Pipeline factory for creating conversation pipelines with optional frame processors.
 """
 from typing import Optional, Tuple, Any, List
 import logging
@@ -34,18 +34,18 @@ class PipelineFactory:
         config: ConversationConfig,
         transport: Any,
         conversation_id: str,
-        aiohttp_session: Any
+        aiohttp_session: Any,
+        enable_processors: bool = True  # New parameter to control processors
     ) -> Tuple[Pipeline, int]:
         """
-        Create a conversation pipeline with optional frame observers.
+        Create a conversation pipeline with optional frame processors.
         
         Args:
             config: Conversation configuration
             transport: Transport implementation
             conversation_id: Unique conversation identifier
             aiohttp_session: HTTP session for services
-            enable_frame_observers: Whether to add frame observers
-            observer_positions: Specific positions to observe (None = all positions)
+            enable_processors: Whether to add conversation processors
             
         Returns:
             Tuple of (pipeline, output_sample_rate)
@@ -53,7 +53,8 @@ class PipelineFactory:
         await self._event_bus.emit(
             f"pipeline:{conversation_id}:lifecycle:creating",
             conversation_id=conversation_id,
-            config=config.to_dict()
+            config=config.to_dict(),
+            processors_enabled=enable_processors
         )
         
         try:
@@ -86,34 +87,63 @@ class PipelineFactory:
             
             context_aggregator = llm.create_context_aggregator(context_obj)
             
-            # Import processors
-            from src.processors.processor import create_conversation_processor
+            # Build pipeline components
+            pipeline_components = []
             
-            # Build pipeline with conversation processors at key positions
-            pipeline = Pipeline([
-                transport.input(),
-                create_conversation_processor(conversation_id, "input"),
-                stt,
-                create_conversation_processor(conversation_id, "post-stt"),
-                context_aggregator.user(),
-                llm,
-                create_conversation_processor(conversation_id, "post-llm"),
-                tts,
-                create_conversation_processor(conversation_id, "post-tts"),
-                transport.output(),
-                context_aggregator.assistant(),
-            ])
+            # Add transport input
+            pipeline_components.append(transport.input())
             
-            logger.info(f"Created pipeline with unified processors for conversation {conversation_id}")
+            # Optionally add input processor
+            if enable_processors:
+                from src.processors.processor import create_conversation_processor
+                pipeline_components.append(create_conversation_processor(conversation_id, "input"))
+            
+            # Add STT
+            pipeline_components.append(stt)
+            
+            # Optionally add post-STT processor
+            if enable_processors:
+                pipeline_components.append(create_conversation_processor(conversation_id, "post-stt"))
+            
+            # Add context aggregator user
+            pipeline_components.append(context_aggregator.user())
+            
+            # Add LLM
+            pipeline_components.append(llm)
+            
+            # Optionally add post-LLM processor
+            if enable_processors:
+                pipeline_components.append(create_conversation_processor(conversation_id, "post-llm"))
+            
+            # Add TTS
+            pipeline_components.append(tts)
+            
+            # Optionally add post-TTS processor
+            if enable_processors:
+                pipeline_components.append(create_conversation_processor(conversation_id, "post-tts"))
+            
+            # Add transport output
+            pipeline_components.append(transport.output())
+            
+            # Add context aggregator assistant
+            pipeline_components.append(context_aggregator.assistant())
+            
+            # Create pipeline
+            pipeline = Pipeline(pipeline_components)
+            
+            logger.info(
+                f"Created pipeline for conversation {conversation_id} "
+                f"(processors {'enabled' if enable_processors else 'disabled'})"
+            )
             
             await self._event_bus.emit(
                 f"pipeline:{conversation_id}:lifecycle:created",
                 conversation_id=conversation_id,
                 pipeline_id=id(pipeline),
-                output_sample_rate=output_sample_rate
+                output_sample_rate=output_sample_rate,
+                processors_enabled=enable_processors
             )
             
-            logger.info(f"Created pipeline for conversation {conversation_id}")
             return pipeline, output_sample_rate
             
         except Exception as e:
