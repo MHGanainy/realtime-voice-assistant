@@ -96,7 +96,9 @@ function App() {
     frameType: null,
     isAssistantSpeaking: false,
     logEndRef: null,
-    eventPingInterval: null
+    eventPingInterval: null,
+    nextStartTime: 0,
+    stateUpdatePending: false
   });
 
   const updateState = (updates) => setState(prev => ({ ...prev, ...updates }));
@@ -327,11 +329,23 @@ function App() {
   };
 
   const playAudioQueue = async () => {
-    const { audioQueue, audioContext, isPlaying } = refs.current;
-    if (isPlaying || !audioQueue.length || !audioContext) return;
+    const { audioQueue, audioContext } = refs.current;
+    
+    // Check if already playing
+    if (refs.current.isPlaying || !audioQueue.length || !audioContext) return;
 
     refs.current.isPlaying = true;
-    updateState({ isAssistantSpeaking: true, isMicMuted: true });
+    
+    // Only update state once at the beginning
+    if (!refs.current.isAssistantSpeaking) {
+      refs.current.isAssistantSpeaking = true;
+      updateState({ isAssistantSpeaking: true, isMicMuted: true });
+    }
+
+    // Initialize next start time if needed
+    if (refs.current.nextStartTime < audioContext.currentTime) {
+      refs.current.nextStartTime = audioContext.currentTime + 0.05;
+    }
 
     while (audioQueue.length > 0 && refs.current.audioContext) {
       const { bytes: audioData, rate } = audioQueue.shift();
@@ -354,10 +368,18 @@ function App() {
         source.buffer = buffer;
         source.connect(refs.current.audioContext.destination);
 
+        // Schedule playback for seamless audio
+        source.start(refs.current.nextStartTime);
+        
+        // Calculate next start time
+        const duration = buffer.duration;
+        refs.current.nextStartTime += duration;
+
+        // Wait for this chunk to finish
         await new Promise(resolve => {
           source.onended = resolve;
-          source.start();
         });
+
       } catch (error) {
         console.error("Playback error:", error);
         break;
@@ -365,12 +387,19 @@ function App() {
     }
 
     refs.current.isPlaying = false;
+    refs.current.isAssistantSpeaking = false;
+    refs.current.nextStartTime = 0;
     updateState({ isAssistantSpeaking: false, isMicMuted: false, status: "Ready for next input" });
   };
 
   const setupAudioWorklet = async (stream) => {
     const audioContext = new AudioContext({ sampleRate: CONFIG.MIC_SAMPLE_RATE });
     refs.current.audioContext = audioContext;
+
+    // Ensure audio context is running
+    if (audioContext.state === 'suspended') {
+      await audioContext.resume();
+    }
 
     const processorCode = `
       class AudioProcessor extends AudioWorkletProcessor {
@@ -421,7 +450,8 @@ function App() {
     };
 
     source.connect(processor);
-    processor.connect(audioContext.destination);
+    // DON'T connect processor to destination - this causes feedback!
+    
     refs.current.processor = processor;
   };
 
@@ -432,16 +462,16 @@ function App() {
     if (!frame) return;
 
     if (frame.audio) {
-      updateState({ 
-        isAssistantSpeaking: true, 
-        isMicMuted: true, 
-        status: 'Assistant speaking...' 
-      });
+      // Don't update state every time - just queue the audio
       refs.current.audioQueue.push({ 
         bytes: frame.audio.audio, 
         rate: frame.audio.sampleRate 
       });
-      playAudioQueue();
+      
+      // Only start playback if not already playing
+      if (!refs.current.isPlaying) {
+        playAudioQueue();
+      }
     } else if (frame.text) {
       updateState(prev => ({
         conversationHistory: [...prev.conversationHistory, { 
@@ -470,6 +500,7 @@ function App() {
       refs.current.audioQueue = [];
       refs.current.isPlaying = false;
       refs.current.isAssistantSpeaking = false;
+      refs.current.nextStartTime = 0;
 
       const sessionId = crypto.randomUUID();
       updateState({ sessionId, status: 'Requesting microphone access...', eventLogs: [] });
@@ -499,8 +530,6 @@ function App() {
         llm_provider: 'openai',
         llm_model: 'gpt-3.5-turbo',
         tts_provider: 'deepinfra',
-        // tts_model: 'eleven_flash_v2_5',
-        // tts_voice: '21m00Tcm4TlvDq8ikWAM',
         system_prompt: 'You are a helpful assistant. Keep your responses brief and conversational.',
         enable_interruptions: 'false',
         vad_enabled: 'true'
@@ -571,6 +600,7 @@ function App() {
     refs.current.audioQueue = [];
     refs.current.isPlaying = false;
     refs.current.isAssistantSpeaking = false;
+    refs.current.nextStartTime = 0;
 
     updateState({
       isRecording: false,
