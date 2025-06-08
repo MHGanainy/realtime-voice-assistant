@@ -145,8 +145,8 @@ export const setupAudioWorklet = async (stream, refs, encodeCallback) => {
   const processor = new AudioWorkletNode(audioContext, 'audio-processor');
   
   processor.port.onmessage = (event) => {
+    // Removed isAssistantSpeaking check to allow interruptions
     if (event.data.type === 'audio' && 
-        !refs.current.isAssistantSpeaking && 
         refs.current.websocket?.readyState === WebSocket.OPEN) {
       const encoded = encodeCallback(new Uint8Array(event.data.data));
       if (encoded) {

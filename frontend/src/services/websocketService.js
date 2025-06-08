@@ -120,7 +120,7 @@ export const createConversationWebSocket = (sessionId, params, refs, updateState
     tts_model: params.ttsModel || 'hexgrad/Kokoro-82M',
     tts_voice: params.ttsVoice || 'af_bella',
     system_prompt: params.systemPrompt,
-    enable_interruptions: 'false',
+    enable_interruptions: (params.enableInterruptions ?? true).toString(),  // Changed to use parameter with default true
     vad_enabled: 'true',
     enable_processors: params.enableProcessors.toString()
   });
@@ -138,6 +138,7 @@ export const createConversationWebSocket = (sessionId, params, refs, updateState
     // Log the connection settings
     addEventLog('system:connection:settings', {
       processors_enabled: params.enableProcessors,
+      interruptions_enabled: params.enableInterruptions ?? true,  // Log interruptions setting
       stt_provider: params.sttProvider,
       stt_model: params.sttModel,
       llm_provider: params.llmProvider,

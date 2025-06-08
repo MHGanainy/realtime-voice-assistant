@@ -29,6 +29,7 @@ function App() {
     eventWsConnected: false,
     autoScrollLogs: true,
     enableProcessors: true,
+    enableInterruptions: true,  // Added interruptions toggle
     systemPrompt: 'You are a helpful assistant. Keep your responses brief and conversational.',
     showSystemPrompt: false,
     ttsProvider: defaultTTS.provider,
@@ -71,7 +72,7 @@ function App() {
     isRecording, isConnected, isAssistantSpeaking, sessionId, 
     status, conversationHistory, devices, selectedDevice, isMicMuted,
     eventLogs, eventWsConnected, autoScrollLogs,
-    enableProcessors, systemPrompt, showSystemPrompt,
+    enableProcessors, enableInterruptions, systemPrompt, showSystemPrompt,
     ttsProvider, ttsModel, ttsVoice,
     llmProvider, llmModel,
     sttProvider, sttModel,
@@ -290,6 +291,7 @@ function App() {
         { 
           systemPrompt: state.systemPrompt, 
           enableProcessors: state.enableProcessors,
+          enableInterruptions: state.enableInterruptions,  // Pass interruptions setting
           ttsProvider: state.ttsProvider,
           ttsModel: state.ttsModel,
           ttsVoice: state.ttsVoice,
@@ -689,6 +691,38 @@ function App() {
               )}
             </div>
 
+            {/* Interruptions toggle */}
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '10px', 
+                color: '#e0e0e0',
+                fontSize: '0.95rem',
+                cursor: isRecording ? 'not-allowed' : 'pointer',
+                opacity: isRecording ? 0.6 : 1
+              }}>
+                <input 
+                  type="checkbox" 
+                  checked={enableInterruptions} 
+                  onChange={(e) => updateState({ enableInterruptions: e.target.checked })}
+                  disabled={isRecording}
+                  style={{ cursor: isRecording ? 'not-allowed' : 'pointer' }}
+                />
+                Enable Voice Interruptions
+              </label>
+              <div style={{ 
+                fontSize: '0.8rem', 
+                color: enableInterruptions ? '#34d399' : '#fbbf24',
+                marginLeft: '24px',
+                marginTop: '4px'
+              }}>
+                {enableInterruptions 
+                  ? '✓ You can interrupt the assistant while it\'s speaking'
+                  : '⚠️ Assistant will complete its response before listening'}
+              </div>
+            </div>
+
             {/* Processor toggle */}
             <div style={{ marginBottom: '15px' }}>
               <label style={{ 
@@ -745,6 +779,14 @@ function App() {
                 color: enableProcessors ? '#34d399' : '#fbbf24'
               }}>
                 {enableProcessors ? '📊 Tracking On' : '⚡ Low Latency'}
+              </div>
+            )}
+            {isConnected && (
+              <div className={`indicator ${enableInterruptions ? 'active' : ''}`} style={{
+                background: enableInterruptions ? '#3a3a3a' : '#2a2a2a',
+                color: enableInterruptions ? '#34d399' : '#fbbf24'
+              }}>
+                {enableInterruptions ? '🎯 Interruptions On' : '🔒 No Interruptions'}
               </div>
             )}
           </div>
@@ -839,7 +881,7 @@ function App() {
               <li>Speak naturally, the assistant will respond</li>
               <li>Say 'goodbye' to end the conversation</li>
               <li>Check the Event Log panel to see real-time events</li>
-              <li>Use Debug Mode to see detailed console logs</li>
+              <li>Enable interruptions to interrupt the assistant mid-response</li>
               <li>Disable processors for lower latency (no tracking)</li>
             </ul>
           </div>
