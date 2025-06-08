@@ -1,7 +1,0 @@
-pyaudio
-websockets
-numpy
-aiohttp
-wave
-protobuf
-pipecat-ai
