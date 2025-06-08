@@ -6,8 +6,10 @@ import os
 import logging
 
 from pipecat.services.deepgram.stt import DeepgramSTTService
+from pipecat.services.deepgram.tts import DeepgramTTSService
 from pipecat.services.openai.stt import OpenAISTTService
 from pipecat.services.openai.llm import OpenAILLMService
+from pipecat.services.openai.tts import OpenAITTSService
 from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
 from pipecat.transcriptions.language import Language
@@ -115,7 +117,22 @@ def create_tts_service(service_name: str, **kwargs) -> Tuple[Any, int]:
     Create the appropriate TTS service.
     Returns (service, output_sample_rate)
     """
-    if service_name == "elevenlabs":
+    if service_name == "openai":
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY not set")
+
+        # OpenAI TTS only supports 24000 Hz
+        sample_rate = 24000
+        
+        return OpenAITTSService(
+            api_key=api_key,
+            voice=kwargs.get("voice", "alloy"),
+            model=kwargs.get("model", "gpt-4o-mini-tts"),
+            sample_rate=sample_rate
+        ), sample_rate
+
+    elif service_name == "elevenlabs":
         api_key = os.getenv("ELEVEN_API_KEY")
         if not api_key:
             raise ValueError("ELEVEN_API_KEY not set")
@@ -127,6 +144,22 @@ def create_tts_service(service_name: str, **kwargs) -> Tuple[Any, int]:
             sample_rate=kwargs.get("sample_rate", 16000),
             params=kwargs.get("params"),
         ), kwargs.get("sample_rate", 16000)
+
+    elif service_name == "deepgram":
+        api_key = os.getenv("DEEPGRAM_API_KEY")
+        if not api_key:
+            raise ValueError("DEEPGRAM_API_KEY not set")
+
+        # Default sample rate for Deepgram TTS
+        sample_rate = kwargs.get("sample_rate", 16000)
+        
+        return DeepgramTTSService(
+            api_key=api_key,
+            voice=kwargs.get("voice", "aura-2-helena-en"),
+            base_url=kwargs.get("base_url", ""),
+            sample_rate=sample_rate,
+            encoding=kwargs.get("encoding", "linear16")
+        ), sample_rate
 
     elif service_name == "deepinfra":
         api_key = os.getenv("DEEPINFRA_API_KEY")
