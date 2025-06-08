@@ -168,30 +168,37 @@ class BaseConversationProcessor(FrameProcessor):
                     # Get the metric data as a dict
                     metric_dict = metric.model_dump(exclude_none=True)
                     
-                    # Extract processor name to determine service type
+                    # Extract processor name and determine service type
                     processor_name = metric_dict.get('processor', '').lower()
+                    
+                    # Determine which position should emit this metric
+                    should_emit = False
                     service = 'unknown'
                     
-                    if 'stt' in processor_name or 'deepgram' in processor_name:
+                    if 'sttservice' in processor_name:
                         service = 'stt'
-                    elif 'llm' in processor_name or ('deepinfra' in processor_name and 'tts' not in processor_name):
+                        should_emit = (self.position == 'post-stt')
+                    elif 'llmservice' in processor_name:
                         service = 'llm'
-                    elif 'tts' in processor_name:
+                        should_emit = (self.position == 'post-llm')
+                    elif 'ttsservice' in processor_name:
                         service = 'tts'
+                        should_emit = (self.position == 'post-tts')
                     
-                    # Emit TTFB event asynchronously
-                    await self._event_bus.emit(
-                        f"conversation:{self.conversation_id}:metrics:ttfb",
-                        conversation_id=self.conversation_id,
-                        session_id=self._session_id,
-                        position=self.position,
-                        service=service,
-                        processor=metric_dict.get('processor'),
-                        model=metric_dict.get('model'),
-                        ttfb=metric_dict.get('value'),  # The actual TTFB value
-                        ttfb_ms=int(metric_dict.get('value', 0) * 1000),  # Convert to milliseconds
-                        unit='ms'
-                    )
+                    # Only emit if we're at the correct position
+                    if should_emit:
+                        await self._event_bus.emit(
+                            f"conversation:{self.conversation_id}:metrics:ttfb",
+                            conversation_id=self.conversation_id,
+                            session_id=self._session_id,
+                            position=self.position,
+                            service=service,
+                            processor=metric_dict.get('processor'),
+                            model=metric_dict.get('model'),
+                            ttfb=metric_dict.get('value'),  # The actual TTFB value
+                            ttfb_ms=int(metric_dict.get('value', 0) * 1000),  # Convert to milliseconds
+                            unit='ms'
+                        )
                 
                 elif isinstance(metric, ProcessingMetricsData):
                     # Skip metrics with zero or None values
@@ -201,30 +208,37 @@ class BaseConversationProcessor(FrameProcessor):
                     # Get the metric data as a dict
                     metric_dict = metric.model_dump(exclude_none=True)
                     
-                    # Extract processor name to determine service type
+                    # Extract processor name and determine service type
                     processor_name = metric_dict.get('processor', '').lower()
+                    
+                    # Determine which position should emit this metric
+                    should_emit = False
                     service = 'unknown'
                     
-                    if 'stt' in processor_name or 'deepgram' in processor_name:
+                    if 'sttservice' in processor_name:
                         service = 'stt'
-                    elif 'llm' in processor_name or ('deepinfra' in processor_name and 'tts' not in processor_name):
+                        should_emit = (self.position == 'post-stt')
+                    elif 'llmservice' in processor_name:
                         service = 'llm'
-                    elif 'tts' in processor_name:
+                        should_emit = (self.position == 'post-llm')
+                    elif 'ttsservice' in processor_name:
                         service = 'tts'
+                        should_emit = (self.position == 'post-tts')
                     
-                    # Emit processing time event asynchronously
-                    await self._event_bus.emit(
-                        f"conversation:{self.conversation_id}:metrics:processing_time",
-                        conversation_id=self.conversation_id,
-                        session_id=self._session_id,
-                        position=self.position,
-                        service=service,
-                        processor=metric_dict.get('processor'),
-                        model=metric_dict.get('model'),
-                        processing_time=metric_dict.get('value'),  # The actual processing time value
-                        processing_time_ms=int(metric_dict.get('value', 0) * 1000),  # Convert to milliseconds
-                        unit='ms'
-                    )
+                    # Only emit if we're at the correct position
+                    if should_emit:
+                        await self._event_bus.emit(
+                            f"conversation:{self.conversation_id}:metrics:processing_time",
+                            conversation_id=self.conversation_id,
+                            session_id=self._session_id,
+                            position=self.position,
+                            service=service,
+                            processor=metric_dict.get('processor'),
+                            model=metric_dict.get('model'),
+                            processing_time=metric_dict.get('value'),  # The actual processing time value
+                            processing_time_ms=int(metric_dict.get('value', 0) * 1000),  # Convert to milliseconds
+                            unit='ms'
+                        )
     
     async def cleanup(self):
         """Clean up background tasks when processor is stopped"""

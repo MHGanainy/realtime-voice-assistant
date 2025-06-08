@@ -24,7 +24,7 @@ from pipecat.utils.tracing.service_decorators import traced_tts
 
 
 class DeepInfraHttpTTSService(ElevenLabsHttpTTSService):
-    """Optimized HTTP-stream TTS for DeepInfra with connection pooling and prefetching"""
+    """Optimized HTTP-stream TTS for DeepInfra with connection pooling"""
 
     def __init__(
         self,
@@ -35,10 +35,7 @@ class DeepInfraHttpTTSService(ElevenLabsHttpTTSService):
         model: str = "hexgrad/Kokoro-82M",
         base_url: str = "https://api.deepinfra.com",
         sample_rate: Optional[int] = None,
-        enable_prefetch: bool = True,
-        prefetch_chars: int = 50,
         connection_pool_size: int = 3,
-        enable_request_pipelining: bool = True,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -51,14 +48,9 @@ class DeepInfraHttpTTSService(ElevenLabsHttpTTSService):
             **kwargs,
         )
         
-        self._enable_prefetch = enable_prefetch
-        self._prefetch_chars = prefetch_chars
-        self._enable_pipelining = enable_request_pipelining
-        
         self._connection_pool_size = connection_pool_size
         self._active_requests: Dict[str, asyncio.Task] = {}
         self._request_queue: asyncio.Queue = asyncio.Queue()
-        self._prefetch_buffer = deque(maxlen=10)
         
         self._last_request_time = 0
         self._request_times = deque(maxlen=100)
@@ -91,56 +83,9 @@ class DeepInfraHttpTTSService(ElevenLabsHttpTTSService):
         }
         return url, payload, headers
 
-    async def _prefetch_request(self, text: str):
-        """Prefetch TTS for anticipated text"""
-        if not self._enable_prefetch:
-            return
-            
-        try:
-            url, payload, headers = self._build_request(text, priority=1)
-            
-            async with self._session.post(url, json=payload, headers=headers) as response:
-                if response.status == 200:
-                    audio_chunks = []
-                    async for chunk in response.content:
-                        audio_chunks.append(chunk)
-                    
-                    self._prefetch_buffer.append({
-                        'text': text,
-                        'audio': audio_chunks,
-                        'timestamp': time()
-                    })
-                    
-        except Exception as e:
-            logger.warning(f"Prefetch failed: {e}")
-
-    def _check_prefetch_cache(self, text: str) -> Optional[list]:
-        """Check if we have prefetched audio for this text"""
-        if not self._enable_prefetch:
-            return None
-            
-        for item in self._prefetch_buffer:
-            if item['text'] == text and (time() - item['timestamp']) < 30:
-                return item['audio']
-        
-        return None
-
     @traced_tts
     async def run_tts(self, text: str) -> AsyncGenerator[Frame, None]:
-        """Optimized TTS with prefetch cache and connection pooling"""
-        
-        cached_audio = self._check_prefetch_cache(text)
-        if cached_audio:
-            await self.start_ttfb_metrics()
-            await self.stop_ttfb_metrics()
-            
-            yield TTSStartedFrame()
-            self._started = True
-            
-            for chunk in cached_audio:
-                yield TTSAudioRawFrame(chunk, self.sample_rate, 1)
-            
-            return
+        """Optimized TTS with connection pooling"""
         
         url, payload, headers = self._build_request(text)
         
@@ -175,9 +120,6 @@ class DeepInfraHttpTTSService(ElevenLabsHttpTTSService):
                         yield TTSStartedFrame()
                         self._started = True
                         first_chunk = False
-                        
-                        if self._enable_prefetch and len(text) > self._prefetch_chars:
-                            asyncio.create_task(self._prefetch_next_segment(text))
                     
                     yield TTSAudioRawFrame(raw, self.sample_rate, 1)
 
@@ -189,10 +131,6 @@ class DeepInfraHttpTTSService(ElevenLabsHttpTTSService):
             yield ErrorFrame(error=str(exc))
         finally:
             await self.stop_ttfb_metrics()
-
-    async def _prefetch_next_segment(self, current_text: str):
-        """Predict and prefetch next likely text segment"""
-        pass
 
     def get_average_ttfb(self) -> float:
         """Get average time to first byte from recent requests"""

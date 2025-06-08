@@ -94,10 +94,11 @@ function App() {
     if (eventName && eventName.includes(':metrics:')) {
       // Get service type directly from the service field
       const serviceType = eventData.service?.toLowerCase();
-      
+      console.log('serviceType', serviceType);
       // Only proceed if we have a valid service type
       if (serviceType && ['stt', 'llm', 'tts'].includes(serviceType)) {
         if (eventName.includes(':ttfb') && eventData.ttfb_ms !== undefined) {
+          console.log('ttfb', eventData.ttfb_ms);
           // Update state immediately for metrics
           setState(prev => ({
             ...prev,
