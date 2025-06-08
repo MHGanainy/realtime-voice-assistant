@@ -2,71 +2,19 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import protobuf from 'protobufjs';
 import './App.css';
 
-const CONFIG = {
-  MIC_SAMPLE_RATE: 16000,
-  CHANNELS: 1,
-  CHUNK_SIZE: 320,
-  WS_BASE_URL: 'ws://localhost:8000',
-  API_BASE_URL: 'http://localhost:8000',
-  EXIT_WORDS: ['goodbye', 'bye', 'exit', 'quit']
-};
-
-const PIPECAT_PROTO = `
-syntax = "proto3";
-package pipecat;
-
-message TextFrame {
-  uint64 id = 1;
-  string name = 2;
-  string text = 3;
-}
-
-message AudioRawFrame {
-  uint64 id = 1;
-  string name = 2;
-  bytes audio = 3;
-  uint32 sample_rate = 4;
-  uint32 num_channels = 5;
-  optional uint64 pts = 6;
-}
-
-message TranscriptionFrame {
-  uint64 id = 1;
-  string name = 2;
-  string text = 3;
-  string user_id = 4;
-  string timestamp = 5;
-}
-
-message MessageFrame {
-    string data = 1;
-}
-
-message Frame {
-  oneof frame {
-    TextFrame text = 1;
-    AudioRawFrame audio = 2;
-    TranscriptionFrame transcription = 3;
-    MessageFrame message = 4;
-  }
-}
-`;
-
-const EVENT_STYLES = {
-  'connection': { icon: '🔌', color: '#60a5fa' },
-  'conversation': { icon: '💬', color: '#34d399' },
-  'transcription': { icon: '📝', color: '#a78bfa' },
-  'audio': { icon: '🔊', color: '#fbbf24' },
-  'turn': { icon: '🔄', color: '#f472b6' },
-  'metrics': { icon: '📊', color: '#94a3b8' },
-  'error': { icon: '❌', color: '#ef4444' },
-  'pipeline': { icon: '⚙️', color: '#06b6d4' },
-  'global': { icon: '🌐', color: '#6366f1' },
-  'system': { icon: '💻', color: '#8b5cf6' },
-  'test': { icon: '🧪', color: '#ec4899' }
-};
+// Import configuration and services
+import { CONFIG, EVENT_STYLES, PIPECAT_PROTO } from './config';
+import { TTS_PROVIDERS, DEFAULT_TTS_PROVIDER, getTTSConfig, getTTSProviderOptions } from './modelConfig';
+import { LLM_PROVIDERS, DEFAULT_LLM_PROVIDER, getLLMConfig, getLLMProviderOptions } from './modelConfig';
+import { STT_PROVIDERS, DEFAULT_STT_PROVIDER, getSTTConfig, getSTTProviderOptions } from './modelConfig';
+import { encodeAudioFrame, decodeFrame, playAudioQueue, setupAudioWorklet } from './services/audioService';
+import { connectEventWebSocket, handleEventMessage as handleEventMsg, createConversationWebSocket, requestEventStats } from './services/websocketService';
 
 function App() {
+  const defaultTTS = getTTSConfig(DEFAULT_TTS_PROVIDER);
+  const defaultLLM = getLLMConfig(DEFAULT_LLM_PROVIDER);
+  const defaultSTT = getSTTConfig(DEFAULT_STT_PROVIDER);
+  
   const [state, setState] = useState({
     isRecording: false,
     isConnected: false,
@@ -79,9 +27,22 @@ function App() {
     isMicMuted: false,
     eventLogs: [],
     eventWsConnected: false,
-    eventFilter: 'all',
     autoScrollLogs: true,
-    debugMode: false
+    enableProcessors: true,
+    systemPrompt: 'You are a helpful assistant. Keep your responses brief and conversational.',
+    showSystemPrompt: false,
+    ttsProvider: defaultTTS.provider,
+    ttsModel: defaultTTS.model,
+    ttsVoice: defaultTTS.voice,
+    llmProvider: defaultLLM.provider,
+    llmModel: defaultLLM.model,
+    sttProvider: defaultSTT.provider,
+    sttModel: defaultSTT.model,
+    metrics: {
+      stt: { ttfb: null, processingTime: null },
+      llm: { ttfb: null, processingTime: null },
+      tts: { ttfb: null, processingTime: null }
+    }
   });
 
   const refs = useRef({
@@ -98,10 +59,24 @@ function App() {
     logEndRef: null,
     eventPingInterval: null,
     nextStartTime: 0,
-    stateUpdatePending: false
+    stateUpdatePending: false,
+    logBuffer: [],
+    logFlushInterval: null
   });
 
   const updateState = (updates) => setState(prev => ({ ...prev, ...updates }));
+
+  // Destructure state early to use in effects
+  const { 
+    isRecording, isConnected, isAssistantSpeaking, sessionId, 
+    status, conversationHistory, devices, selectedDevice, isMicMuted,
+    eventLogs, eventWsConnected, autoScrollLogs,
+    enableProcessors, systemPrompt, showSystemPrompt,
+    ttsProvider, ttsModel, ttsVoice,
+    llmProvider, llmModel,
+    sttProvider, sttModel,
+    metrics
+  } = state;
 
   const addEventLog = useCallback((eventName, eventData, options = {}) => {
     const logEntry = {
@@ -112,12 +87,81 @@ function App() {
       type: options.type || 'event'
     };
   
-    setState(prevState => ({
-      ...prevState,
-      eventLogs: [...prevState.eventLogs.slice(-499), logEntry]
-    }));
+    // Add to buffer instead of directly updating state
+    refs.current.logBuffer.push(logEntry);
+    
+    // Check if this is a metrics event and update metrics state immediately
+    if (eventName && eventName.includes(':metrics:')) {
+      // Get service type directly from the service field
+      const serviceType = eventData.service?.toLowerCase();
+      
+      // Only proceed if we have a valid service type
+      if (serviceType && ['stt', 'llm', 'tts'].includes(serviceType)) {
+        if (eventName.includes(':ttfb') && eventData.ttfb_ms !== undefined) {
+          // Update state immediately for metrics
+          setState(prev => ({
+            ...prev,
+            metrics: {
+              ...prev.metrics,
+              [serviceType]: {
+                ...prev.metrics[serviceType],
+                ttfb: eventData.ttfb_ms
+              }
+            }
+          }));
+        } else if (eventName.includes(':processing_time') && eventData.processing_time_ms !== undefined) {
+          // Update state immediately for metrics
+          setState(prev => ({
+            ...prev,
+            metrics: {
+              ...prev.metrics,
+              [serviceType]: {
+                ...prev.metrics[serviceType],
+                processingTime: eventData.processing_time_ms
+              }
+            }
+          }));
+        }
+      }
+    }
   }, []);
 
+  // Flush log buffer to state periodically
+  const flushLogBuffer = useCallback(() => {
+    if (refs.current.logBuffer.length > 0) {
+      const newLogs = [...refs.current.logBuffer];
+      refs.current.logBuffer = [];
+      
+      setState(prevState => ({
+        ...prevState,
+        eventLogs: [...prevState.eventLogs, ...newLogs].slice(-500)
+      }));
+    }
+  }, []);
+
+  // Start log flushing when recording starts
+  useEffect(() => {
+    if (isRecording) {
+      // Flush logs every 100ms while recording
+      refs.current.logFlushInterval = setInterval(flushLogBuffer, 100);
+    } else {
+      // Clear interval and flush any remaining logs when recording stops
+      if (refs.current.logFlushInterval) {
+        clearInterval(refs.current.logFlushInterval);
+        refs.current.logFlushInterval = null;
+        flushLogBuffer(); // Final flush
+      }
+    }
+    
+    return () => {
+      if (refs.current.logFlushInterval) {
+        clearInterval(refs.current.logFlushInterval);
+        refs.current.logFlushInterval = null;
+      }
+    };
+  }, [isRecording, flushLogBuffer]);
+
+  // Initialize protobuf
   useEffect(() => {
     try {
       const root = protobuf.parse(PIPECAT_PROTO).root;
@@ -128,6 +172,7 @@ function App() {
     }
   }, []);
 
+  // Initialize audio devices
   useEffect(() => {
     navigator.mediaDevices.enumerateDevices().then(devices => {
       const audioInputs = devices.filter(d => d.kind === 'audioinput');
@@ -138,339 +183,38 @@ function App() {
     });
   }, []);
 
+  // Auto-scroll logs
   useEffect(() => {
     if (state.autoScrollLogs && refs.current.logEndRef) {
       refs.current.logEndRef.scrollIntoView({ behavior: 'smooth' });
     }
   }, [state.eventLogs, state.autoScrollLogs]);
 
-  const startEventPing = () => {
-    const pingInterval = setInterval(() => {
-      if (refs.current.eventWebsocket?.readyState === WebSocket.OPEN) {
-        refs.current.eventWebsocket.send(JSON.stringify({
-          type: 'ping',
-          timestamp: new Date().toISOString()
-        }));
-      } else {
-        clearInterval(pingInterval);
-      }
-    }, 30000);
-    
-    refs.current.eventPingInterval = pingInterval;
-  };
-
-  const connectEventWebSocket = (sessionId) => {
-    if (!sessionId) return;
-
-    const eventWs = new WebSocket(`${CONFIG.WS_BASE_URL}/ws/events?session_id=${sessionId}`);
-    
-    eventWs.onopen = () => {
-      updateState({ eventWsConnected: true });
-      addEventLog('system', 'Event stream connected', { type: 'info' });
-      startEventPing();
-    };
-
-    eventWs.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        handleEventMessage(data);
-      } catch (error) {
-        addEventLog('system', 'Failed to parse event message', { 
-          type: 'error',
-          data: { error: error.message }
-        });
-      }
-    };
-
-    eventWs.onerror = (error) => {
-      addEventLog('system', 'Event stream error', { type: 'error' });
-    };
-
-    eventWs.onclose = (event) => {
-      updateState({ eventWsConnected: false });
-      addEventLog('system', 'Event stream disconnected', { 
-        type: 'warning',
-        data: { code: event.code, reason: event.reason }
-      });
-      
-      if (refs.current.eventPingInterval) {
-        clearInterval(refs.current.eventPingInterval);
-        refs.current.eventPingInterval = null;
-      }
-      
-      refs.current.eventWebsocket = null;
-    };
-
-    refs.current.eventWebsocket = eventWs;
-  };
-
-  const handleEventMessage = useCallback((message) => {
-    const { type, event: eventName, data, timestamp } = message;
-  
-    switch (type) {
-      case 'event':
-        if (eventName) {
-          addEventLog(eventName, data || {}, { timestamp });
-        }
-        break;
-  
-      case 'welcome':
-        addEventLog('system:welcome', data || {}, { type: 'success' });
-        
-        if (refs.current.eventWebsocket?.readyState === WebSocket.OPEN) {
-          refs.current.eventWebsocket.send(JSON.stringify({
-            type: 'subscribe',
-            subscription: {
-              patterns: ["*"],
-              include_historical: true
-            }
-          }));
-        }
-        break;
-  
-      case 'historical_start':
-        addEventLog('system:historical:start', { count: data?.count || 0 }, { type: 'info' });
-        break;
-  
-      case 'historical_end':
-        addEventLog('system:historical:end', { count: data?.count || 0 }, { type: 'success' });
-        break;
-  
-      case 'subscription_updated':
-        addEventLog('system:subscription:updated', data || {}, { type: 'info' });
-        break;
-  
-      case 'stats':
-        addEventLog('system:stats', data || {}, { type: 'info' });
-        break;
-
-      case 'heartbeat':
-      case 'pong':
-        break;
-  
-      default:
-        addEventLog('system:unknown', { type, ...message }, { type: 'warning' });
-    }
-  }, [addEventLog]);
-
-  const addTestEvent = () => {
-    addEventLog('test:event:manual', {
-      message: 'This is a test event',
-      timestamp: new Date().toISOString(),
-      random: Math.random()
-    }, { type: 'info' });
-  };
-
-  const requestEventStats = () => {
-    if (refs.current.eventWebsocket?.readyState === WebSocket.OPEN) {
-      refs.current.eventWebsocket.send(JSON.stringify({
-        type: 'get_stats'
-      }));
-    }
-  };
-
-  const getEventCategory = (eventName) => {
-    if (!eventName || typeof eventName !== 'string') return 'system';
-    const parts = eventName.split(':');
-    return parts[0] || 'system';
-  };
-
-  const getFilteredLogs = () => {
-    if (state.eventFilter === 'all') return state.eventLogs;
-    return state.eventLogs.filter(log => {
-      const category = getEventCategory(log.eventName);
-      return category === state.eventFilter;
-    });
-  };
-
-  const clearLogs = () => {
-    updateState({ eventLogs: [] });
-    addEventLog('system', 'Logs cleared', { type: 'info' });
-  };
-
+  // Update assistant speaking ref
   useEffect(() => {
     refs.current.isAssistantSpeaking = state.isAssistantSpeaking;
   }, [state.isAssistantSpeaking]);
 
-  const encodeAudioFrame = (audioData) => {
-    const { frameType } = refs.current;
-    if (!frameType) return null;
+  // Wrapper for handleEventMessage to bind dependencies
+  const handleEventMessage = useCallback((message) => {
+    handleEventMsg(message, addEventLog, refs);
+  }, [addEventLog]);
 
-    try {
-      const message = frameType.create({
-        audio: {
-          audio: audioData,
-          sampleRate: CONFIG.MIC_SAMPLE_RATE,
-          numChannels: CONFIG.CHANNELS,
-        }
-      });
-      return frameType.encode(message).finish();
-    } catch (error) {
-      console.error("Encode error:", error);
-      return null;
-    }
-  };
-
-  const decodeFrame = (data) => {
-    const { frameType } = refs.current;
-    if (!frameType) return null;
-
-    try {
-      const decoded = frameType.decode(new Uint8Array(data));
-      return frameType.toObject(decoded, {
-        bytes: Uint8Array,
-        longs: Number,
-        defaults: true,
-      });
-    } catch (error) {
-      console.error("Decode error:", error);
-      return null;
-    }
-  };
-
-  const playAudioQueue = async () => {
-    const { audioQueue, audioContext } = refs.current;
-    
-    // Check if already playing
-    if (refs.current.isPlaying || !audioQueue.length || !audioContext) return;
-
-    refs.current.isPlaying = true;
-    
-    // Only update state once at the beginning
-    if (!refs.current.isAssistantSpeaking) {
-      refs.current.isAssistantSpeaking = true;
-      updateState({ isAssistantSpeaking: true, isMicMuted: true });
-    }
-
-    // Initialize next start time if needed
-    if (refs.current.nextStartTime < audioContext.currentTime) {
-      refs.current.nextStartTime = audioContext.currentTime + 0.05;
-    }
-
-    while (audioQueue.length > 0 && refs.current.audioContext) {
-      const { bytes: audioData, rate } = audioQueue.shift();
-
-      try {
-        if (refs.current.audioContext.state === 'closed') break;
-
-        const aligned = audioData.byteOffset & 1 ? new Uint8Array(audioData) : audioData;
-        const int16 = new Int16Array(aligned.buffer, aligned.byteOffset, aligned.byteLength >> 1);
-        const float32 = new Float32Array(int16.length);
-        
-        for (let i = 0; i < int16.length; i++) {
-          float32[i] = int16[i] / 32768;
-        }
-
-        const buffer = refs.current.audioContext.createBuffer(1, float32.length, rate);
-        buffer.getChannelData(0).set(float32);
-
-        const source = refs.current.audioContext.createBufferSource();
-        source.buffer = buffer;
-        source.connect(refs.current.audioContext.destination);
-
-        // Schedule playback for seamless audio
-        source.start(refs.current.nextStartTime);
-        
-        // Calculate next start time
-        const duration = buffer.duration;
-        refs.current.nextStartTime += duration;
-
-        // Wait for this chunk to finish
-        await new Promise(resolve => {
-          source.onended = resolve;
-        });
-
-      } catch (error) {
-        console.error("Playback error:", error);
-        break;
-      }
-    }
-
-    refs.current.isPlaying = false;
-    refs.current.isAssistantSpeaking = false;
-    refs.current.nextStartTime = 0;
-    updateState({ isAssistantSpeaking: false, isMicMuted: false, status: "Ready for next input" });
-  };
-
-  const setupAudioWorklet = async (stream) => {
-    const audioContext = new AudioContext({ sampleRate: CONFIG.MIC_SAMPLE_RATE });
-    refs.current.audioContext = audioContext;
-
-    // Ensure audio context is running
-    if (audioContext.state === 'suspended') {
-      await audioContext.resume();
-    }
-
-    const processorCode = `
-      class AudioProcessor extends AudioWorkletProcessor {
-        constructor() {
-          super();
-          this.buffer = [];
-        }
-
-        process(inputs) {
-          const input = inputs[0]?.[0];
-          if (!input) return true;
-          
-          for (const sample of input) {
-            this.buffer.push(sample);
-            
-            if (this.buffer.length >= ${CONFIG.CHUNK_SIZE}) {
-              const int16 = new Int16Array(${CONFIG.CHUNK_SIZE});
-              for (let i = 0; i < ${CONFIG.CHUNK_SIZE}; i++) {
-                const s = Math.max(-1, Math.min(1, this.buffer[i]));
-                int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-              }
-              
-              this.port.postMessage({ type: 'audio', data: int16.buffer });
-              this.buffer = [];
-            }
-          }
-          return true;
-        }
-      }
-      registerProcessor('audio-processor', AudioProcessor);
-    `;
-
-    const blob = new Blob([processorCode], { type: 'application/javascript' });
-    await audioContext.audioWorklet.addModule(URL.createObjectURL(blob));
-
-    const source = audioContext.createMediaStreamSource(stream);
-    const processor = new AudioWorkletNode(audioContext, 'audio-processor');
-    
-    processor.port.onmessage = (event) => {
-      if (event.data.type === 'audio' && 
-          !refs.current.isAssistantSpeaking && 
-          refs.current.websocket?.readyState === WebSocket.OPEN) {
-        const encoded = encodeAudioFrame(new Uint8Array(event.data.data));
-        if (encoded) {
-          refs.current.websocket.send(encoded);
-        }
-      }
-    };
-
-    source.connect(processor);
-    // DON'T connect processor to destination - this causes feedback!
-    
-    refs.current.processor = processor;
-  };
-
+  // Handle WebSocket messages
   const handleWebSocketMessage = async (event) => {
     if (!(event.data instanceof ArrayBuffer)) return;
 
-    const frame = decodeFrame(event.data);
+    const frame = decodeFrame(event.data, refs.current.frameType);
     if (!frame) return;
 
     if (frame.audio) {
-      // Don't update state every time - just queue the audio
       refs.current.audioQueue.push({ 
         bytes: frame.audio.audio, 
         rate: frame.audio.sampleRate 
       });
       
-      // Only start playback if not already playing
       if (!refs.current.isPlaying) {
-        playAudioQueue();
+        playAudioQueue(refs, updateState);
       }
     } else if (frame.text) {
       updateState(prev => ({
@@ -501,12 +245,24 @@ function App() {
       refs.current.isPlaying = false;
       refs.current.isAssistantSpeaking = false;
       refs.current.nextStartTime = 0;
+      refs.current.logBuffer = []; // Clear log buffer
 
       const sessionId = crypto.randomUUID();
-      updateState({ sessionId, status: 'Requesting microphone access...', eventLogs: [] });
+      updateState({ 
+        sessionId, 
+        status: 'Requesting microphone access...', 
+        eventLogs: [],
+        metrics: {
+          stt: { ttfb: null, processingTime: null },
+          llm: { ttfb: null, processingTime: null },
+          tts: { ttfb: null, processingTime: null }
+        }
+      });
 
-      connectEventWebSocket(sessionId);
+      // Connect event WebSocket
+      connectEventWebSocket(sessionId, refs, updateState, addEventLog, handleEventMessage);
 
+      // Get microphone stream
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           deviceId: state.selectedDevice,
@@ -520,42 +276,32 @@ function App() {
       refs.current.mediaStream = stream;
 
       updateState({ status: 'Setting up audio processing...' });
-      await setupAudioWorklet(stream);
+      
+      // Setup audio worklet with encoder callback
+      const encodeCallback = (audioData) => encodeAudioFrame(audioData, refs.current.frameType);
+      await setupAudioWorklet(stream, refs, encodeCallback);
 
       updateState({ status: 'Connecting to server...' });
       
-      const params = new URLSearchParams({
-        session_id: sessionId,
-        stt_provider: 'deepgram',
-        llm_provider: 'openai',
-        llm_model: 'gpt-3.5-turbo',
-        tts_provider: 'deepinfra',
-        system_prompt: 'You are a helpful assistant. Keep your responses brief and conversational.',
-        enable_interruptions: 'false',
-        vad_enabled: 'true'
-      });
-      
-      const ws = new WebSocket(`${CONFIG.WS_BASE_URL}/ws/conversation?${params}`);
-      ws.binaryType = 'arraybuffer';
-      
-      ws.onopen = () => updateState({ 
-        isConnected: true, 
-        isRecording: true, 
-        status: 'Connected! Speak naturally...' 
-      });
-      
-      ws.onmessage = handleWebSocketMessage;
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        updateState({ status: 'Connection error' });
-      };
-      ws.onclose = (event) => {
-        updateState({ 
-          isConnected: false, 
-          isRecording: false, 
-          status: `Disconnected: ${event.reason || 'Connection closed'}` 
-        });
-      };
+      // Create conversation WebSocket
+      const ws = createConversationWebSocket(
+        sessionId,
+        { 
+          systemPrompt: state.systemPrompt, 
+          enableProcessors: state.enableProcessors,
+          ttsProvider: state.ttsProvider,
+          ttsModel: state.ttsModel,
+          ttsVoice: state.ttsVoice,
+          llmProvider: state.llmProvider,
+          llmModel: state.llmModel,
+          sttProvider: state.sttProvider,
+          sttModel: state.sttModel
+        },
+        refs,
+        updateState,
+        handleWebSocketMessage,
+        addEventLog
+      );
       
       refs.current.websocket = ws;
     } catch (error) {
@@ -566,6 +312,9 @@ function App() {
 
   const stopConversation = () => {
     const { websocket, eventWebsocket, mediaStream, audioContext, processor } = refs.current;
+    
+    // Flush any remaining logs before stopping
+    flushLogBuffer();
     
     if (websocket) {
       websocket.close();
@@ -601,6 +350,7 @@ function App() {
     refs.current.isPlaying = false;
     refs.current.isAssistantSpeaking = false;
     refs.current.nextStartTime = 0;
+    refs.current.logBuffer = []; // Clear log buffer
 
     updateState({
       isRecording: false,
@@ -612,11 +362,24 @@ function App() {
     });
   };
 
-  const { 
-    isRecording, isConnected, isAssistantSpeaking, sessionId, 
-    status, conversationHistory, devices, selectedDevice, isMicMuted,
-    eventLogs, eventWsConnected, eventFilter, autoScrollLogs, debugMode
-  } = state;
+  const addTestEvent = () => {
+    addEventLog('test:event:manual', {
+      message: 'This is a test event',
+      timestamp: new Date().toISOString(),
+      random: Math.random()
+    }, { type: 'info' });
+  };
+
+  const getEventCategory = (eventName) => {
+    if (!eventName || typeof eventName !== 'string') return 'system';
+    const parts = eventName.split(':');
+    return parts[0] || 'system';
+  };
+
+  const clearLogs = () => {
+    updateState({ eventLogs: [] });
+    addEventLog('system', 'Logs cleared', { type: 'info' });
+  };
 
   return (
     <div className="app">
@@ -647,55 +410,322 @@ function App() {
               </select>
             </div>
 
+            {/* STT Provider selector */}
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{
+                display: 'block',
+                fontSize: '0.875rem',
+                color: '#e0e0e0',
+                marginBottom: '5px'
+              }}>
+                Speech Recognition:
+              </label>
+              <select 
+                value={sttProvider} 
+                onChange={(e) => {
+                  const provider = e.target.value;
+                  const wasRecording = isRecording;
+                  
+                  // Stop current conversation if active
+                  if (wasRecording) {
+                    stopConversation();
+                  }
+                  
+                  // Update STT settings from config
+                  const sttConfig = getSTTConfig(provider);
+                  updateState({ 
+                    sttProvider: sttConfig.provider,
+                    sttModel: sttConfig.model
+                  });
+                  
+                  // Restart conversation if it was active
+                  if (wasRecording) {
+                    setTimeout(() => {
+                      startConversation();
+                    }, 500);
+                  }
+                }}
+                disabled={isRecording}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  background: '#2a2a2a',
+                  border: '1px solid #3a3a3a',
+                  borderRadius: '4px',
+                  color: '#e0e0e0',
+                  fontSize: '0.875rem',
+                  cursor: isRecording ? 'not-allowed' : 'pointer',
+                  opacity: isRecording ? 0.6 : 1
+                }}
+              >
+                {getSTTProviderOptions().map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <div style={{
+                marginTop: '5px',
+                fontSize: '0.75rem',
+                color: '#666'
+              }}>
+                {getSTTConfig(sttProvider).description}
+              </div>
+            </div>
+
+            {/* LLM Provider selector */}
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{
+                display: 'block',
+                fontSize: '0.875rem',
+                color: '#e0e0e0',
+                marginBottom: '5px'
+              }}>
+                LLM Model:
+              </label>
+              <select 
+                value={llmProvider} 
+                onChange={(e) => {
+                  const provider = e.target.value;
+                  const wasRecording = isRecording;
+                  
+                  // Stop current conversation if active
+                  if (wasRecording) {
+                    stopConversation();
+                  }
+                  
+                  // Update LLM settings from config
+                  const llmConfig = getLLMConfig(provider);
+                  updateState({ 
+                    llmProvider: llmConfig.provider,
+                    llmModel: llmConfig.model
+                  });
+                  
+                  // Restart conversation if it was active
+                  if (wasRecording) {
+                    setTimeout(() => {
+                      startConversation();
+                    }, 500);
+                  }
+                }}
+                disabled={isRecording}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  background: '#2a2a2a',
+                  border: '1px solid #3a3a3a',
+                  borderRadius: '4px',
+                  color: '#e0e0e0',
+                  fontSize: '0.875rem',
+                  cursor: isRecording ? 'not-allowed' : 'pointer',
+                  opacity: isRecording ? 0.6 : 1
+                }}
+              >
+                {getLLMProviderOptions().map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <div style={{
+                marginTop: '5px',
+                fontSize: '0.75rem',
+                color: '#666'
+              }}>
+                {getLLMConfig(llmProvider).description}
+              </div>
+            </div>
+
+            {/* TTS Provider selector */}
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{
+                display: 'block',
+                fontSize: '0.875rem',
+                color: '#e0e0e0',
+                marginBottom: '5px'
+              }}>
+                TTS Provider:
+              </label>
+              <select 
+                value={ttsProvider} 
+                onChange={(e) => {
+                  const provider = e.target.value;
+                  const wasRecording = isRecording;
+                  
+                  // Stop current conversation if active
+                  if (wasRecording) {
+                    stopConversation();
+                  }
+                  
+                  // Update TTS settings from config
+                  const ttsConfig = getTTSConfig(provider);
+                  updateState({ 
+                    ttsProvider: ttsConfig.provider,
+                    ttsModel: ttsConfig.model,
+                    ttsVoice: ttsConfig.voice
+                  });
+                  
+                  // Restart conversation if it was active
+                  if (wasRecording) {
+                    setTimeout(() => {
+                      startConversation();
+                    }, 500);
+                  }
+                }}
+                disabled={isRecording}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  background: '#2a2a2a',
+                  border: '1px solid #3a3a3a',
+                  borderRadius: '4px',
+                  color: '#e0e0e0',
+                  fontSize: '0.875rem',
+                  cursor: isRecording ? 'not-allowed' : 'pointer',
+                  opacity: isRecording ? 0.6 : 1
+                }}
+              >
+                {getTTSProviderOptions().map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <div style={{
+                marginTop: '5px',
+                fontSize: '0.75rem',
+                color: '#666'
+              }}>
+                {getTTSConfig(ttsProvider).description}
+              </div>
+            </div>
+
+            {/* System prompt editor */}
+            <div style={{ marginBottom: '15px' }}>
+              <button
+                onClick={() => updateState({ showSystemPrompt: !showSystemPrompt })}
+                disabled={isRecording}
+                style={{
+                  padding: '8px 16px',
+                  background: '#2a2a2a',
+                  border: '1px solid #3a3a3a',
+                  borderRadius: '4px',
+                  color: '#e0e0e0',
+                  cursor: isRecording ? 'not-allowed' : 'pointer',
+                  fontSize: '0.875rem',
+                  marginBottom: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  opacity: isRecording ? 0.6 : 1
+                }}
+              >
+                {showSystemPrompt ? '🔽' : '▶️'} Customize System Prompt
+              </button>
+              
+              {showSystemPrompt && (
+                <div style={{
+                  background: '#2a2a2a',
+                  border: '1px solid #3a3a3a',
+                  borderRadius: '8px',
+                  padding: '15px',
+                  marginBottom: '10px'
+                }}>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '0.875rem',
+                    color: '#9ca3af',
+                    marginBottom: '8px'
+                  }}>
+                    System Prompt (defines assistant behavior):
+                  </label>
+                  <textarea
+                    value={systemPrompt}
+                    onChange={(e) => {
+                      const newPrompt = e.target.value;
+                      const wasRecording = isRecording;
+                      
+                      // Stop current conversation if active
+                      if (wasRecording) {
+                        stopConversation();
+                      }
+                      
+                      // Update the prompt
+                      updateState({ systemPrompt: newPrompt });
+                      
+                      // Restart conversation if it was active
+                      if (wasRecording) {
+                        setTimeout(() => {
+                          startConversation();
+                        }, 500);
+                      }
+                    }}
+                    disabled={isRecording}
+                    placeholder="Enter system prompt..."
+                    style={{
+                      width: '100%',
+                      minHeight: '100px',
+                      maxHeight: '200px',
+                      background: '#1a1a1a',
+                      border: '1px solid #3a3a3a',
+                      borderRadius: '4px',
+                      padding: '10px',
+                      color: '#e0e0e0',
+                      fontSize: '0.875rem',
+                      fontFamily: 'Monaco, Menlo, monospace',
+                      resize: 'vertical',
+                      opacity: isRecording ? 0.6 : 1
+                    }}
+                  />
+                  <div style={{
+                    marginTop: '8px',
+                    fontSize: '0.75rem',
+                    color: '#666'
+                  }}>
+                    {systemPrompt.length} characters
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Processor toggle */}
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '10px', 
+                color: '#e0e0e0',
+                fontSize: '0.95rem',
+                cursor: isRecording ? 'not-allowed' : 'pointer',
+                opacity: isRecording ? 0.6 : 1
+              }}>
+                <input 
+                  type="checkbox" 
+                  checked={enableProcessors} 
+                  onChange={(e) => updateState({ enableProcessors: e.target.checked })}
+                  disabled={isRecording}
+                  style={{ cursor: isRecording ? 'not-allowed' : 'pointer' }}
+                />
+                Enable Conversation Tracking & Metrics
+              </label>
+              <div style={{ 
+                fontSize: '0.8rem', 
+                color: enableProcessors ? '#34d399' : '#fbbf24',
+                marginLeft: '24px',
+                marginTop: '4px'
+              }}>
+                {enableProcessors 
+                  ? '✓ Full tracking: transcriptions saved, metrics collected, events emitted'
+                  : '⚡ Low-latency mode: minimal processing, no tracking'}
+              </div>
+            </div>
+
             <button 
               className={`main-button ${isRecording ? 'stop' : 'start'}`}
               onClick={isRecording ? stopConversation : startConversation}
             >
               {isRecording ? '⏹️ Stop Conversation' : '▶️ Start Conversation'}
             </button>
-
-            {debugMode && (
-              <div className="debug-controls" style={{ marginTop: '10px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                <button 
-                  onClick={addTestEvent}
-                  style={{
-                    padding: '8px 16px',
-                    background: '#9333ea',
-                    border: 'none',
-                    borderRadius: '4px',
-                    color: 'white',
-                    cursor: 'pointer',
-                    fontSize: '0.875rem'
-                  }}
-                >
-                  ➕ Add Test Event
-                </button>
-                
-                <button 
-                  onClick={requestEventStats}
-                  style={{
-                    padding: '8px 16px',
-                    background: '#059669',
-                    border: 'none',
-                    borderRadius: '4px',
-                    color: 'white',
-                    cursor: 'pointer',
-                    fontSize: '0.875rem'
-                  }}
-                >
-                  📊 Request Stats
-                </button>
-              </div>
-            )}
-            
-            <label style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#e0e0e0', marginTop: '10px' }}>
-              <input 
-                type="checkbox" 
-                checked={debugMode} 
-                onChange={(e) => updateState({ debugMode: e.target.checked })}
-              />
-              Debug Mode
-            </label>
           </div>
 
           <div className="indicators">
@@ -708,7 +738,99 @@ function App() {
             <div className={`indicator ${eventWsConnected ? 'active' : ''}`}>
               📡 {eventWsConnected ? 'Events Connected' : 'Events Disconnected'}
             </div>
+            {isConnected && (
+              <div className={`indicator ${enableProcessors ? 'active' : ''}`} style={{
+                background: enableProcessors ? '#3a3a3a' : '#2a2a2a',
+                color: enableProcessors ? '#34d399' : '#fbbf24'
+              }}>
+                {enableProcessors ? '📊 Tracking On' : '⚡ Low Latency'}
+              </div>
+            )}
           </div>
+
+          {/* Metrics Display */}
+          {isConnected && enableProcessors && (
+            <div className="metrics-panel" style={{
+              marginTop: '20px',
+              padding: '15px',
+              background: '#2a2a2a',
+              border: '1px solid #3a3a3a',
+              borderRadius: '8px'
+            }}>
+              <h3 style={{ margin: '0 0 15px 0', fontSize: '1rem', color: '#e0e0e0' }}>
+                ⚡ Performance Metrics
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px' }}>
+                {/* STT Metrics */}
+                <div style={{
+                  padding: '12px',
+                  background: '#1a1a1a',
+                  borderRadius: '6px',
+                  border: '1px solid #3a3a3a'
+                }}>
+                  <h4 style={{ margin: '0 0 8px 0', fontSize: '0.875rem', color: '#9ca3af' }}>
+                    🎤 STT
+                  </h4>
+                  <div style={{ fontSize: '0.75rem', color: '#e0e0e0' }}>
+                    <div style={{ marginBottom: '4px' }}>
+                      TTFB: {metrics.stt.ttfb !== null ? `${metrics.stt.ttfb}ms` : '-'}
+                    </div>
+                    <div>
+                      Processing: {metrics.stt.processingTime !== null ? `${metrics.stt.processingTime}ms` : '-'}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* LLM Metrics */}
+                <div style={{
+                  padding: '12px',
+                  background: '#1a1a1a',
+                  borderRadius: '6px',
+                  border: '1px solid #3a3a3a'
+                }}>
+                  <h4 style={{ margin: '0 0 8px 0', fontSize: '0.875rem', color: '#9ca3af' }}>
+                    🧠 LLM
+                  </h4>
+                  <div style={{ fontSize: '0.75rem', color: '#e0e0e0' }}>
+                    <div style={{ marginBottom: '4px' }}>
+                      TTFB: {metrics.llm.ttfb !== null ? `${metrics.llm.ttfb}ms` : '-'}
+                    </div>
+                    <div>
+                      Processing: {metrics.llm.processingTime !== null ? `${metrics.llm.processingTime}ms` : '-'}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* TTS Metrics */}
+                <div style={{
+                  padding: '12px',
+                  background: '#1a1a1a',
+                  borderRadius: '6px',
+                  border: '1px solid #3a3a3a'
+                }}>
+                  <h4 style={{ margin: '0 0 8px 0', fontSize: '0.875rem', color: '#9ca3af' }}>
+                    🔊 TTS
+                  </h4>
+                  <div style={{ fontSize: '0.75rem', color: '#e0e0e0' }}>
+                    <div style={{ marginBottom: '4px' }}>
+                      TTFB: {metrics.tts.ttfb !== null ? `${metrics.tts.ttfb}ms` : '-'}
+                    </div>
+                    <div>
+                      Processing: {metrics.tts.processingTime !== null ? `${metrics.tts.processingTime}ms` : '-'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div style={{
+                marginTop: '10px',
+                fontSize: '0.7rem',
+                color: '#666',
+                textAlign: 'center'
+              }}>
+                TTFB: Time To First Byte | Processing: Total processing time
+              </div>
+            </div>
+          )}
 
           <div className="tips" style={{ marginTop: '20px' }}>
             <h3>💡 Tips:</h3>
@@ -717,6 +839,7 @@ function App() {
               <li>Say 'goodbye' to end the conversation</li>
               <li>Check the Event Log panel to see real-time events</li>
               <li>Use Debug Mode to see detailed console logs</li>
+              <li>Disable processors for lower latency (no tracking)</li>
             </ul>
           </div>
 
@@ -737,24 +860,6 @@ function App() {
           <div className="log-header">
             <h3>📊 Event Log ({eventLogs.length} events)</h3>
             <div className="log-controls">
-              <select 
-                className="filter-select"
-                value={eventFilter} 
-                onChange={(e) => updateState({ eventFilter: e.target.value })}
-              >
-                <option value="all">All Events</option>
-                <option value="connection">Connection</option>
-                <option value="conversation">Conversation</option>
-                <option value="transcription">Transcription</option>
-                <option value="audio">Audio</option>
-                <option value="turn">Turn</option>
-                <option value="metrics">Metrics</option>
-                <option value="error">Errors</option>
-                <option value="pipeline">Pipeline</option>
-                <option value="global">Global</option>
-                <option value="system">System</option>
-                <option value="test">Test</option>
-              </select>
               <button 
                 className={`toggle-button ${autoScrollLogs ? 'active' : ''}`}
                 onClick={() => updateState({ autoScrollLogs: !autoScrollLogs })}
@@ -773,20 +878,20 @@ function App() {
           </div>
 
           <div className="log-content">
-            {getFilteredLogs().length === 0 ? (
+            {eventLogs.length === 0 ? (
               <div className="log-empty">
                 No events to display
-                {debugMode && (
+                {!enableProcessors && isConnected && (
                   <>
                     <br/>
-                    <small style={{ color: '#666', fontSize: '0.8em' }}>
-                      Click "Add Test Event" to verify the log panel is working
+                    <small style={{ color: '#fbbf24', fontSize: '0.9em' }}>
+                      Note: Processors are disabled - fewer events will be logged
                     </small>
                   </>
                 )}
               </div>
             ) : (
-              getFilteredLogs().map((log) => {
+              eventLogs.map((log) => {
                 const category = getEventCategory(log.eventName);
                 const style = EVENT_STYLES[category] || { icon: '📌', color: '#94a3b8' };
                 const time = new Date(log.timestamp).toLocaleTimeString();
