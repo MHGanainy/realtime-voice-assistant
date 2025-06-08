@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     openai_api_key: Optional[str] = Field(default=None, env="OPENAI_API_KEY")
     eleven_api_key: Optional[str] = Field(default=None, env="ELEVEN_API_KEY")
     deepinfra_api_key: Optional[str] = Field(default=None, env="DEEPINFRA_API_KEY")
+    speechify_api_key: Optional[str] = Field(default=None, env="SPEECHIFY_API_KEY")
     
     # Service Defaults
     default_stt_provider: str = Field(default="deepgram", env="DEFAULT_STT_PROVIDER")
@@ -85,7 +86,8 @@ class Settings(BaseSettings):
             "deepgram": bool(self.deepgram_api_key),
             "openai": bool(self.openai_api_key),
             "elevenlabs": bool(self.eleven_api_key),
-            "deepinfra": bool(self.deepinfra_api_key)
+            "deepinfra": bool(self.deepinfra_api_key),
+            "speechify": bool(self.speechify_api_key)
         }
     
     def get_service_api_key(self, service: str) -> Optional[str]:
@@ -94,7 +96,8 @@ class Settings(BaseSettings):
             "deepgram": self.deepgram_api_key,
             "openai": self.openai_api_key,
             "elevenlabs": self.eleven_api_key,
-            "deepinfra": self.deepinfra_api_key
+            "deepinfra": self.deepinfra_api_key,
+            "speechify": self.speechify_api_key
         }
         return key_map.get(service)
 

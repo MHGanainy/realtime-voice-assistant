@@ -39,6 +39,15 @@ export const TTS_PROVIDERS = {
     voice: '21m00Tcm4TlvDq8ikWAM',
     displayName: 'ElevenLabs - Flash v2.5',
     description: 'Using eleven_flash_v2_5 model'
+  },
+
+  speechify: {
+    name: 'Speechify',
+    provider: 'speechify',
+    model: 'simba-english',
+    voice: 'kristy',
+    displayName: 'Speechify - Simba English (Kristy)',
+    description: 'Natural English voice using Simba English model'
   }
 };
 

@@ -16,6 +16,7 @@ from pipecat.transcriptions.language import Language
 
 from src.services.providers.deepinfra_llm import DeepInfraLLMService
 from src.services.providers.deepinfra_tts import DeepInfraHttpTTSService
+from src.services.providers.speechify_tts import SpeechifyTTSService
 
 logger = logging.getLogger(__name__)
 
@@ -181,9 +182,36 @@ def create_tts_service(service_name: str, **kwargs) -> Tuple[Any, int]:
             params=kwargs.get("params"),
         ), sample_rate
 
+    elif service_name == "speechify":
+        api_key = os.getenv("SPEECHIFY_API_KEY")
+        if not api_key:
+            raise ValueError("SPEECHIFY_API_KEY not set")
+
+        aiohttp_session = kwargs.get("aiohttp_session")
+        if aiohttp_session is None:
+            raise ValueError("create_tts_service('speechify') needs aiohttp_session=<ClientSession>")
+
+        # Speechify uses 24000 Hz sample rate
+        sample_rate = 24000
+        
+        # Default to English (en-US) since language is always English
+        params = SpeechifyTTSService.InputParams(
+            language="en-US",
+            model=kwargs.get("model", "simba-english")
+        )
+        
+        return SpeechifyTTSService(
+            api_key=api_key,
+            voice_id=kwargs.get("voice_id", "kristy"),  # You'll need actual Speechify voice IDs
+            model=kwargs.get("model", "simba-english"),
+            aiohttp_session=aiohttp_session,
+            sample_rate=sample_rate,
+            params=params,
+            base_url=kwargs.get("base_url", "https://api.sws.speechify.com")
+        ), sample_rate
+
     else:
         raise ValueError(f"Unknown TTS service: {service_name}")
-
 
 def create_llm_context(llm_service_type: str, system_prompt: str = None, **kwargs) -> OpenAILLMContext:
     """Create the appropriate LLM context based on the service type"""
