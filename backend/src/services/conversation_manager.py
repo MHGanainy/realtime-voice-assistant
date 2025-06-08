@@ -1,6 +1,5 @@
 """
 Conversation management service for voice assistant.
-Handles the lifecycle of 1-on-1 conversations.
 """
 import asyncio
 from typing import Dict, Optional, Callable, Any, List
@@ -18,6 +17,7 @@ from src.domains.conversation import (
     ConversationMetrics
 )
 from src.config.settings import get_settings
+from src.events import EventBus, EventStore, get_event_bus, get_event_store
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineTask
@@ -32,10 +32,11 @@ class ConversationManager:
         self._conversations: Dict[str, Conversation] = {}
         self._active_pipelines: Dict[str, Dict[str, Any]] = {}
         self._pipeline_runner = pipeline_runner or PipelineRunner()
-        self._event_handlers: Dict[str, List[Callable]] = {}
         self._settings = get_settings()
         
-        # Start cleanup task
+        self._event_bus = get_event_bus()
+        self._event_store = get_event_store()
+        
         self._cleanup_task = asyncio.create_task(self._cleanup_stale_conversations())
     
     async def create_conversation(
@@ -53,7 +54,25 @@ class ConversationManager:
         )
         
         self._conversations[conversation.id] = conversation
-        await self._emit_event("conversation_created", conversation)
+        
+        await self._event_bus.emit(
+            f"conversation:{conversation.id}:lifecycle:created",
+            conversation_id=conversation.id,
+            session_id=participant.session_id,
+            participant_id=participant.id,
+            config=config.to_dict(),
+            created_at=conversation.created_at.isoformat()
+        )
+        
+        await self._event_store.store_event(
+            f"conversation:{conversation.id}:lifecycle:created",
+            {
+                "conversation_id": conversation.id,
+                "session_id": participant.session_id,
+                "participant_id": participant.id,
+                "config": config.to_dict()
+            }
+        )
         
         logger.info(f"Created conversation {conversation.id} for participant {participant.id}")
         return conversation
@@ -61,7 +80,7 @@ class ConversationManager:
     async def start_conversation(
         self,
         conversation_id: str,
-        transport: Any,  # FastAPIWebsocketTransport
+        transport: Any,
         pipeline: Pipeline
     ) -> bool:
         """Start a conversation with the given transport and pipeline"""
@@ -75,18 +94,32 @@ class ConversationManager:
             return False
         
         try:
-            # Store pipeline reference
             self._active_pipelines[conversation_id] = {
                 "pipeline": pipeline,
                 "transport": transport,
                 "task": None
             }
             
-            # Update conversation state
             conversation.start()
             conversation.pipeline_id = id(pipeline)
             
-            await self._emit_event("conversation_started", conversation)
+            await self._event_bus.emit(
+                f"conversation:{conversation_id}:lifecycle:started",
+                conversation_id=conversation_id,
+                session_id=conversation.participant.session_id,
+                pipeline_id=conversation.pipeline_id,
+                started_at=conversation.started_at.isoformat()
+            )
+            
+            await self._event_store.store_event(
+                f"conversation:{conversation_id}:lifecycle:started",
+                {
+                    "conversation_id": conversation_id,
+                    "session_id": conversation.participant.session_id,
+                    "pipeline_id": conversation.pipeline_id
+                }
+            )
+            
             logger.info(f"Started conversation {conversation_id}")
             return True
             
@@ -120,7 +153,6 @@ class ConversationManager:
         if not conversation:
             return False
         
-        # Clean up pipeline
         if conversation_id in self._active_pipelines:
             pipeline_info = self._active_pipelines[conversation_id]
             task = pipeline_info.get("task")
@@ -129,17 +161,28 @@ class ConversationManager:
             
             del self._active_pipelines[conversation_id]
         
-        # Update conversation
         conversation.end(error=error)
         
-        # Emit appropriate event
         if error:
-            await self._emit_event("conversation_error", {
-                "conversation": conversation,
-                "error": error
-            })
+            event_name = f"conversation:{conversation_id}:lifecycle:error"
+            event_data = {
+                "conversation_id": conversation_id,
+                "session_id": conversation.participant.session_id,
+                "error": error,
+                "ended_at": conversation.ended_at.isoformat(),
+                "metrics": conversation.metrics.to_dict()
+            }
         else:
-            await self._emit_event("conversation_ended", conversation)
+            event_name = f"conversation:{conversation_id}:lifecycle:ended"
+            event_data = {
+                "conversation_id": conversation_id,
+                "session_id": conversation.participant.session_id,
+                "ended_at": conversation.ended_at.isoformat(),
+                "metrics": conversation.metrics.to_dict()
+            }
+        
+        await self._event_bus.emit(event_name, **event_data)
+        await self._event_store.store_event(event_name, event_data)
         
         logger.info(f"Ended conversation {conversation_id}")
         return True
@@ -155,22 +198,21 @@ class ConversationManager:
         if not conversation or conversation.state != ConversationState.ACTIVE:
             return
         
-        # Update metrics
         if direction == AudioDirection.INBOUND:
             conversation.metrics.total_audio_bytes_in += len(audio_data)
         else:
             conversation.metrics.total_audio_bytes_out += len(audio_data)
         
-        chunk = AudioChunk(
-            conversation_id=conversation_id,
-            direction=direction,
-            data=audio_data,
-            sample_rate=conversation.config.sample_rate,
-            channels=conversation.config.channels,
-            format=conversation.config.audio_format
-        )
-        
-        await self._emit_event("audio_chunk", chunk)
+        total_bytes = (conversation.metrics.total_audio_bytes_in + 
+                      conversation.metrics.total_audio_bytes_out)
+        if total_bytes % 102400 == 0:
+            await self._event_bus.emit(
+                f"conversation:{conversation_id}:metrics:audio",
+                conversation_id=conversation_id,
+                bytes_in=conversation.metrics.total_audio_bytes_in,
+                bytes_out=conversation.metrics.total_audio_bytes_out,
+                direction=direction.value
+            )
     
     async def handle_transcription(
         self,
@@ -185,18 +227,48 @@ class ConversationManager:
         if not conversation:
             return None
         
+        event_type = "final" if is_final else "interim"
+        await self._event_bus.emit(
+            f"conversation:{conversation_id}:transcription:{event_type}",
+            conversation_id=conversation_id,
+            session_id=conversation.participant.session_id,
+            text=text,
+            speaker=speaker,
+            is_final=is_final,
+            confidence=confidence
+        )
+        
         if is_final:
             turn = conversation.add_turn(
                 speaker=speaker,
                 text=text,
                 confidence=confidence
             )
-            await self._emit_event("turn_completed", {
-                "conversation": conversation,
-                "turn": turn
-            })
-            logger.debug(f"[{conversation_id}] {speaker}: {text}")
+            
+            await self._event_bus.emit(
+                f"conversation:{conversation_id}:turn:completed",
+                conversation_id=conversation_id,
+                session_id=conversation.participant.session_id,
+                turn_id=turn.id,
+                speaker=speaker,
+                text=text,
+                confidence=confidence,
+                turn_count=conversation.metrics.turn_count
+            )
+            
+            await self._event_store.store_event(
+                f"conversation:{conversation_id}:turn:completed",
+                {
+                    "conversation_id": conversation_id,
+                    "session_id": conversation.participant.session_id,
+                    "turn_id": turn.id,
+                    "speaker": speaker,
+                    "text": text
+                }
+            )
+            
             return turn
+        
         return None
     
     async def handle_interruption(
@@ -209,14 +281,26 @@ class ConversationManager:
         conversation = self._conversations.get(conversation_id)
         if conversation:
             conversation.handle_interruption(interrupted_turn_id, timestamp_ms)
-            await self._emit_event("interruption", {
-                "conversation_id": conversation_id,
-                "interrupted_turn_id": interrupted_turn_id
-            })
+            
+            await self._event_bus.emit(
+                f"conversation:{conversation_id}:turn:interrupted",
+                conversation_id=conversation_id,
+                session_id=conversation.participant.session_id,
+                interrupted_turn_id=interrupted_turn_id,
+                timestamp_ms=timestamp_ms,
+                interruption_count=conversation.metrics.interruption_count
+            )
     
     def get_conversation(self, conversation_id: str) -> Optional[Conversation]:
         """Get conversation by ID"""
         return self._conversations.get(conversation_id)
+    
+    def get_conversations_by_session(self, session_id: str) -> List[Conversation]:
+        """Get all conversations for a session"""
+        return [
+            conv for conv in self._conversations.values()
+            if conv.participant.session_id == session_id
+        ]
     
     def get_active_conversations(self) -> Dict[str, Conversation]:
         """Get all active conversations"""
@@ -234,13 +318,16 @@ class ConversationManager:
         if conversation_id in self._conversations:
             await self.end_conversation(conversation_id)
             del self._conversations[conversation_id]
+            
+            await self._event_store.clear_conversation_events(conversation_id)
+            
             logger.info(f"Cleaned up conversation {conversation_id}")
     
     async def _cleanup_stale_conversations(self):
         """Background task to clean up stale conversations"""
         while True:
             try:
-                await asyncio.sleep(300)  # Check every 5 minutes
+                await asyncio.sleep(300)
                 
                 now = datetime.utcnow()
                 max_duration = timedelta(
@@ -252,6 +339,13 @@ class ConversationManager:
                     if conv.state == ConversationState.ACTIVE:
                         if conv.started_at and (now - conv.started_at) > max_duration:
                             stale_conversations.append(cid)
+                            
+                            await self._event_bus.emit(
+                                f"conversation:{cid}:lifecycle:timeout",
+                                conversation_id=cid,
+                                session_id=conv.participant.session_id,
+                                duration_ms=int((now - conv.started_at).total_seconds() * 1000)
+                            )
                     elif conv.state in [ConversationState.ENDED, ConversationState.ERROR]:
                         if conv.ended_at and (now - conv.ended_at) > timedelta(minutes=10):
                             stale_conversations.append(cid)
@@ -262,32 +356,11 @@ class ConversationManager:
             except Exception as e:
                 logger.error(f"Error in cleanup task: {e}")
     
-    def on_event(self, event_name: str, handler: Callable):
-        """Register event handler"""
-        if event_name not in self._event_handlers:
-            self._event_handlers[event_name] = []
-        self._event_handlers[event_name].append(handler)
-        return lambda: self._event_handlers[event_name].remove(handler)
-    
-    async def _emit_event(self, event_name: str, data: Any):
-        """Emit event to registered handlers"""
-        if event_name in self._event_handlers:
-            for handler in self._event_handlers[event_name]:
-                try:
-                    if asyncio.iscoroutinefunction(handler):
-                        await handler(data)
-                    else:
-                        handler(data)
-                except Exception as e:
-                    logger.error(f"Error in event handler for {event_name}: {e}")
-    
     async def shutdown(self):
         """Shutdown manager and cleanup resources"""
-        # Cancel cleanup task
         if self._cleanup_task:
             self._cleanup_task.cancel()
         
-        # End all active conversations
         active_convs = list(self.get_active_conversations().keys())
         for conv_id in active_convs:
             await self.end_conversation(conv_id)
@@ -295,7 +368,6 @@ class ConversationManager:
         logger.info("Conversation manager shut down")
 
 
-# Global conversation manager instance
 _conversation_manager: Optional[ConversationManager] = None
 
 

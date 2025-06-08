@@ -1,4 +1,4 @@
 """Processors package"""
-from .conversation_processors import ConversationProcessor
+from .processor import create_conversation_processor
 
-__all__ = ["ConversationProcessor"]
+__all__ = ["create_conversation_processor"]

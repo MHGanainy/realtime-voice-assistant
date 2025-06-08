@@ -1,6 +1,5 @@
 """
 DeepInfra LLM Service for Pipecat
-Provides access to Llama and other models through DeepInfra's API
 """
 import asyncio
 import json
@@ -88,7 +87,6 @@ class DeepInfraLLMService(LLMService):
             "extra": params.extra if isinstance(params.extra, dict) else {},
         }
         
-        # Create HTTP client with longer timeout for large models
         self._client = httpx.AsyncClient(
             base_url=self._base_url,
             headers={
@@ -116,7 +114,6 @@ class DeepInfraLLMService(LLMService):
 
     @traced_llm
     async def _process_context(self, context: OpenAILLMContext):
-        # Token usage tracking
         prompt_tokens = 0
         completion_tokens = 0
         completion_tokens_estimate = 0
@@ -126,22 +123,15 @@ class DeepInfraLLMService(LLMService):
             await self.push_frame(LLMFullResponseStartFrame())
             await self.start_processing_metrics()
 
-            # Extract system message from context
             system_message = None
             messages = []
             
-            # Check if first message is a system message
             if context.messages and context.messages[0].get("role") == "system":
                 system_message = context.messages[0].get("content", "")
-                messages = context.messages[1:]  # Skip the system message
+                messages = context.messages[1:]
             else:
                 messages = context.messages
 
-            logger.debug(
-                f"{self}: Generating chat [system: {system_message}] | [{context.get_messages_for_logging()}]"
-            )
-
-            # Build final messages list
             final_messages = []
             if system_message:
                 final_messages.append({"role": "system", "content": system_message})
@@ -169,7 +159,6 @@ class DeepInfraLLMService(LLMService):
                 
             params.update(self._settings["extra"])
 
-            # Make streaming request
             response = self._client.stream(
                 "POST",
                 "/chat/completions",
@@ -178,7 +167,6 @@ class DeepInfraLLMService(LLMService):
 
             await self.stop_ttfb_metrics()
 
-            # Process streaming response
             async with response as stream:
                 async for line in stream.aiter_lines():
                     if line.startswith("data: "):
@@ -193,20 +181,14 @@ class DeepInfraLLMService(LLMService):
                                 choice = chunk["choices"][0]
                                 delta = choice.get("delta", {})
                                 
-                                # Handle text content
                                 if "content" in delta and delta["content"]:
                                     content = delta["content"]
-                                    # Skip end-of-sequence tokens
                                     if content != "</s>":
                                         await self.push_frame(LLMTextFrame(content))
                                         completion_tokens_estimate += self._estimate_tokens(content)
                                 
-                                # Check for finish reason
                                 finish_reason = choice.get("finish_reason")
                                 if finish_reason and finish_reason != "null":
-                                    logger.debug(f"Stream finish reason: {finish_reason}")
-                                    
-                                    # If we have usage data in the final chunk
                                     if "usage" in chunk:
                                         usage = chunk["usage"]
                                         if isinstance(usage, dict):
@@ -216,14 +198,12 @@ class DeepInfraLLMService(LLMService):
                                             prompt_tokens = getattr(usage, "prompt_tokens", prompt_tokens)
                                             completion_tokens = getattr(usage, "completion_tokens", completion_tokens)
                             
-                            # Track usage if provided
                             if "usage" in chunk:
                                 usage = chunk["usage"]
                                 if isinstance(usage, dict):
                                     prompt_tokens = usage.get("prompt_tokens", 0)
                                     completion_tokens = usage.get("completion_tokens", 0)
                                 else:
-                                    # Handle object-style access
                                     prompt_tokens = getattr(usage, "prompt_tokens", 0)
                                     completion_tokens = getattr(usage, "completion_tokens", 0)
                                 
@@ -290,7 +270,6 @@ class DeepInfraLLMService(LLMService):
         """Update settings from a frame"""
         for key, value in settings.items():
             if key in self._settings:
-                logger.debug(f"Updating setting {key} to {value}")
                 self._settings[key] = value
 
 

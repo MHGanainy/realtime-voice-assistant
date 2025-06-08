@@ -10,3 +10,4 @@ pytest-mock
 websockets
 python-dotenv
 aioquic
+pyee

@@ -728,3 +728,220 @@ h1 {
   margin-right: 5px;
   animation: pulse 2s ease-in-out infinite;
 }
+/* Existing styles remain the same, add these new styles */
+
+/* Main layout with panels */
+.main-container {
+  display: flex;
+  gap: 20px;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+  height: 90vh;
+}
+
+.conversation-panel {
+  flex: 1;
+  background: #1a1a1a;
+  border-radius: 20px;
+  padding: 40px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  overflow-y: auto;
+}
+
+/* Event Log Panel */
+.event-log-panel {
+  width: 400px;
+  background: #1a1a1a;
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #3a3a3a;
+}
+
+.log-header h3 {
+  font-size: 1.25em;
+  color: #e0e0e0;
+  margin: 0;
+}
+
+.log-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.filter-select {
+  padding: 6px 12px;
+  background: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  color: #e0e0e0;
+  font-size: 0.875em;
+  cursor: pointer;
+}
+
+.filter-select:hover {
+  border-color: #667eea;
+}
+
+.toggle-button,
+.clear-button {
+  padding: 6px 10px;
+  background: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1em;
+  transition: all 0.2s;
+}
+
+.toggle-button:hover,
+.clear-button:hover {
+  background: #3a3a3a;
+  border-color: #4a4a4a;
+}
+
+.toggle-button.active {
+  background: #667eea;
+  border-color: #667eea;
+}
+
+.log-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 5px;
+}
+
+.log-empty {
+  text-align: center;
+  color: #666;
+  padding: 40px 20px;
+  font-style: italic;
+}
+
+.log-entry {
+  display: flex;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid #2a2a2a;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.log-time {
+  font-size: 0.75em;
+  color: #666;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.log-icon {
+  font-size: 1.125em;
+  flex-shrink: 0;
+}
+
+.log-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.log-event-name {
+  font-size: 0.875em;
+  font-weight: 500;
+  margin-bottom: 4px;
+  word-break: break-word;
+}
+
+.log-data {
+  font-size: 0.75em;
+  color: #999;
+  margin-top: 4px;
+}
+
+.log-data-item {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 2px;
+  word-break: break-word;
+}
+
+.log-data-key {
+  color: #666;
+  flex-shrink: 0;
+}
+
+.log-data-value {
+  color: #999;
+  overflow-wrap: break-word;
+}
+
+/* Log entry types */
+.log-entry.info .log-event-name {
+  color: #60a5fa;
+}
+
+.log-entry.success .log-event-name {
+  color: #34d399;
+}
+
+.log-entry.warning .log-event-name {
+  color: #fbbf24;
+}
+
+.log-entry.error .log-event-name {
+  color: #ef4444;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .main-container {
+    flex-direction: column;
+    height: auto;
+  }
+  
+  .event-log-panel {
+    width: 100%;
+    height: 400px;
+  }
+}
+
+/* Scrollbar styling for log panel */
+.log-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.log-content::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+.log-content::-webkit-scrollbar-thumb {
+  background: #3a3a3a;
+  border-radius: 3px;
+}
+
+.log-content::-webkit-scrollbar-thumb:hover {
+  background: #4a4a4a;
+}

@@ -52,6 +52,20 @@ message Frame {
 }
 `;
 
+const EVENT_STYLES = {
+  'connection': { icon: '🔌', color: '#60a5fa' },
+  'conversation': { icon: '💬', color: '#34d399' },
+  'transcription': { icon: '📝', color: '#a78bfa' },
+  'audio': { icon: '🔊', color: '#fbbf24' },
+  'turn': { icon: '🔄', color: '#f472b6' },
+  'metrics': { icon: '📊', color: '#94a3b8' },
+  'error': { icon: '❌', color: '#ef4444' },
+  'pipeline': { icon: '⚙️', color: '#06b6d4' },
+  'global': { icon: '🌐', color: '#6366f1' },
+  'system': { icon: '💻', color: '#8b5cf6' },
+  'test': { icon: '🧪', color: '#ec4899' }
+};
+
 function App() {
   const [state, setState] = useState({
     isRecording: false,
@@ -62,7 +76,12 @@ function App() {
     conversationHistory: [],
     devices: [],
     selectedDevice: '',
-    isMicMuted: false
+    isMicMuted: false,
+    eventLogs: [],
+    eventWsConnected: false,
+    eventFilter: 'all',
+    autoScrollLogs: true,
+    debugMode: false
   });
 
   const refs = useRef({
@@ -70,17 +89,33 @@ function App() {
     mediaStream: null,
     processor: null,
     websocket: null,
+    eventWebsocket: null,
     audioQueue: [],
     isPlaying: false,
     protoRoot: null,
     frameType: null,
-    isAssistantSpeaking: false
+    isAssistantSpeaking: false,
+    logEndRef: null,
+    eventPingInterval: null
   });
 
-  // State helper
   const updateState = (updates) => setState(prev => ({ ...prev, ...updates }));
 
-  // Initialize protobuf
+  const addEventLog = useCallback((eventName, eventData, options = {}) => {
+    const logEntry = {
+      id: `${Date.now()}-${Math.random()}`,
+      eventName,
+      data: eventData,
+      timestamp: options.timestamp || new Date().toISOString(),
+      type: options.type || 'event'
+    };
+  
+    setState(prevState => ({
+      ...prevState,
+      eventLogs: [...prevState.eventLogs.slice(-499), logEntry]
+    }));
+  }, []);
+
   useEffect(() => {
     try {
       const root = protobuf.parse(PIPECAT_PROTO).root;
@@ -91,7 +126,6 @@ function App() {
     }
   }, []);
 
-  // Get audio devices
   useEffect(() => {
     navigator.mediaDevices.enumerateDevices().then(devices => {
       const audioInputs = devices.filter(d => d.kind === 'audioinput');
@@ -102,12 +136,160 @@ function App() {
     });
   }, []);
 
-  // Sync assistant speaking state
+  useEffect(() => {
+    if (state.autoScrollLogs && refs.current.logEndRef) {
+      refs.current.logEndRef.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [state.eventLogs, state.autoScrollLogs]);
+
+  const startEventPing = () => {
+    const pingInterval = setInterval(() => {
+      if (refs.current.eventWebsocket?.readyState === WebSocket.OPEN) {
+        refs.current.eventWebsocket.send(JSON.stringify({
+          type: 'ping',
+          timestamp: new Date().toISOString()
+        }));
+      } else {
+        clearInterval(pingInterval);
+      }
+    }, 30000);
+    
+    refs.current.eventPingInterval = pingInterval;
+  };
+
+  const connectEventWebSocket = (sessionId) => {
+    if (!sessionId) return;
+
+    const eventWs = new WebSocket(`${CONFIG.WS_BASE_URL}/ws/events?session_id=${sessionId}`);
+    
+    eventWs.onopen = () => {
+      updateState({ eventWsConnected: true });
+      addEventLog('system', 'Event stream connected', { type: 'info' });
+      startEventPing();
+    };
+
+    eventWs.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        handleEventMessage(data);
+      } catch (error) {
+        addEventLog('system', 'Failed to parse event message', { 
+          type: 'error',
+          data: { error: error.message }
+        });
+      }
+    };
+
+    eventWs.onerror = (error) => {
+      addEventLog('system', 'Event stream error', { type: 'error' });
+    };
+
+    eventWs.onclose = (event) => {
+      updateState({ eventWsConnected: false });
+      addEventLog('system', 'Event stream disconnected', { 
+        type: 'warning',
+        data: { code: event.code, reason: event.reason }
+      });
+      
+      if (refs.current.eventPingInterval) {
+        clearInterval(refs.current.eventPingInterval);
+        refs.current.eventPingInterval = null;
+      }
+      
+      refs.current.eventWebsocket = null;
+    };
+
+    refs.current.eventWebsocket = eventWs;
+  };
+
+  const handleEventMessage = useCallback((message) => {
+    const { type, event: eventName, data, timestamp } = message;
+  
+    switch (type) {
+      case 'event':
+        if (eventName) {
+          addEventLog(eventName, data || {}, { timestamp });
+        }
+        break;
+  
+      case 'welcome':
+        addEventLog('system:welcome', data || {}, { type: 'success' });
+        
+        if (refs.current.eventWebsocket?.readyState === WebSocket.OPEN) {
+          refs.current.eventWebsocket.send(JSON.stringify({
+            type: 'subscribe',
+            subscription: {
+              patterns: ["*"],
+              include_historical: true
+            }
+          }));
+        }
+        break;
+  
+      case 'historical_start':
+        addEventLog('system:historical:start', { count: data?.count || 0 }, { type: 'info' });
+        break;
+  
+      case 'historical_end':
+        addEventLog('system:historical:end', { count: data?.count || 0 }, { type: 'success' });
+        break;
+  
+      case 'subscription_updated':
+        addEventLog('system:subscription:updated', data || {}, { type: 'info' });
+        break;
+  
+      case 'stats':
+        addEventLog('system:stats', data || {}, { type: 'info' });
+        break;
+
+      case 'heartbeat':
+      case 'pong':
+        break;
+  
+      default:
+        addEventLog('system:unknown', { type, ...message }, { type: 'warning' });
+    }
+  }, [addEventLog]);
+
+  const addTestEvent = () => {
+    addEventLog('test:event:manual', {
+      message: 'This is a test event',
+      timestamp: new Date().toISOString(),
+      random: Math.random()
+    }, { type: 'info' });
+  };
+
+  const requestEventStats = () => {
+    if (refs.current.eventWebsocket?.readyState === WebSocket.OPEN) {
+      refs.current.eventWebsocket.send(JSON.stringify({
+        type: 'get_stats'
+      }));
+    }
+  };
+
+  const getEventCategory = (eventName) => {
+    if (!eventName || typeof eventName !== 'string') return 'system';
+    const parts = eventName.split(':');
+    return parts[0] || 'system';
+  };
+
+  const getFilteredLogs = () => {
+    if (state.eventFilter === 'all') return state.eventLogs;
+    return state.eventLogs.filter(log => {
+      const category = getEventCategory(log.eventName);
+      return category === state.eventFilter;
+    });
+  };
+
+  const clearLogs = () => {
+    updateState({ eventLogs: [] });
+    addEventLog('system', 'Logs cleared', { type: 'info' });
+  };
+
   useEffect(() => {
     refs.current.isAssistantSpeaking = state.isAssistantSpeaking;
   }, [state.isAssistantSpeaking]);
 
-  // Audio encoding/decoding
   const encodeAudioFrame = (audioData) => {
     const { frameType } = refs.current;
     if (!frameType) return null;
@@ -144,7 +326,6 @@ function App() {
     }
   };
 
-  // Audio playback
   const playAudioQueue = async () => {
     const { audioQueue, audioContext, isPlaying } = refs.current;
     if (isPlaying || !audioQueue.length || !audioContext) return;
@@ -156,11 +337,7 @@ function App() {
       const { bytes: audioData, rate } = audioQueue.shift();
 
       try {
-        // Check if AudioContext is still valid
-        if (refs.current.audioContext.state === 'closed') {
-          console.error('AudioContext is closed, cannot play audio');
-          break;
-        }
+        if (refs.current.audioContext.state === 'closed') break;
 
         const aligned = audioData.byteOffset & 1 ? new Uint8Array(audioData) : audioData;
         const int16 = new Int16Array(aligned.buffer, aligned.byteOffset, aligned.byteLength >> 1);
@@ -191,7 +368,6 @@ function App() {
     updateState({ isAssistantSpeaking: false, isMicMuted: false, status: "Ready for next input" });
   };
 
-  // Audio worklet setup
   const setupAudioWorklet = async (stream) => {
     const audioContext = new AudioContext({ sampleRate: CONFIG.MIC_SAMPLE_RATE });
     refs.current.audioContext = audioContext;
@@ -238,7 +414,9 @@ function App() {
           !refs.current.isAssistantSpeaking && 
           refs.current.websocket?.readyState === WebSocket.OPEN) {
         const encoded = encodeAudioFrame(new Uint8Array(event.data.data));
-        if (encoded) refs.current.websocket.send(encoded);
+        if (encoded) {
+          refs.current.websocket.send(encoded);
+        }
       }
     };
 
@@ -247,7 +425,6 @@ function App() {
     refs.current.processor = processor;
   };
 
-  // WebSocket message handler
   const handleWebSocketMessage = async (event) => {
     if (!(event.data instanceof ArrayBuffer)) return;
 
@@ -288,17 +465,16 @@ function App() {
     }
   };
 
-  // Start conversation - UPDATED FOR YOUR BACKEND
   const startConversation = async () => {
     try {
-      // Reset audio-related refs before starting
       refs.current.audioQueue = [];
       refs.current.isPlaying = false;
       refs.current.isAssistantSpeaking = false;
 
-      // Generate session ID client-side since backend doesn't have session endpoint
       const sessionId = crypto.randomUUID();
-      updateState({ sessionId, status: 'Requesting microphone access...' });
+      updateState({ sessionId, status: 'Requesting microphone access...', eventLogs: [] });
+
+      connectEventWebSocket(sessionId);
 
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -317,16 +493,14 @@ function App() {
 
       updateState({ status: 'Connecting to server...' });
       
-      // Build WebSocket URL with correct endpoint and parameters
       const params = new URLSearchParams({
         session_id: sessionId,
-        // Add any additional parameters your backend supports
         stt_provider: 'deepgram',
-        llm_provider: 'deepinfra',
+        llm_provider: 'openai',
+        llm_model: 'gpt-3.5-turbo',
         tts_provider: 'deepinfra',
-        // tts_provider: 'elevenlabs',
-        // tts_voice: 'EXAVITQu4vr4xnSDxMaL',
         // tts_model: 'eleven_flash_v2_5',
+        // tts_voice: '21m00Tcm4TlvDq8ikWAM',
         system_prompt: 'You are a helpful assistant. Keep your responses brief and conversational.',
         enable_interruptions: 'false',
         vad_enabled: 'true'
@@ -347,7 +521,6 @@ function App() {
         updateState({ status: 'Connection error' });
       };
       ws.onclose = (event) => {
-        console.log('WebSocket closed:', event.code, event.reason);
         updateState({ 
           isConnected: false, 
           isRecording: false, 
@@ -362,35 +535,39 @@ function App() {
     }
   };
 
-  // Stop conversation
   const stopConversation = () => {
-    const { websocket, mediaStream, audioContext, processor } = refs.current;
+    const { websocket, eventWebsocket, mediaStream, audioContext, processor } = refs.current;
     
-    // Close WebSocket
     if (websocket) {
       websocket.close();
       refs.current.websocket = null;
     }
     
-    // Stop media stream
+    if (eventWebsocket) {
+      eventWebsocket.close();
+      refs.current.eventWebsocket = null;
+    }
+    
+    if (refs.current.eventPingInterval) {
+      clearInterval(refs.current.eventPingInterval);
+      refs.current.eventPingInterval = null;
+    }
+    
     if (mediaStream) {
       mediaStream.getTracks().forEach(track => track.stop());
       refs.current.mediaStream = null;
     }
     
-    // Disconnect processor
     if (processor) {
       processor.disconnect();
       refs.current.processor = null;
     }
     
-    // Close audio context
     if (audioContext && audioContext.state !== 'closed') {
       audioContext.close();
       refs.current.audioContext = null;
     }
     
-    // Clear audio queue and reset flags
     refs.current.audioQueue = [];
     refs.current.isPlaying = false;
     refs.current.isAssistantSpeaking = false;
@@ -400,81 +577,220 @@ function App() {
       isConnected: false,
       isAssistantSpeaking: false,
       isMicMuted: false,
+      eventWsConnected: false,
       status: 'Conversation ended'
     });
   };
 
   const { 
     isRecording, isConnected, isAssistantSpeaking, sessionId, 
-    status, conversationHistory, devices, selectedDevice, isMicMuted 
+    status, conversationHistory, devices, selectedDevice, isMicMuted,
+    eventLogs, eventWsConnected, eventFilter, autoScrollLogs, debugMode
   } = state;
 
   return (
     <div className="app">
-      <div className="container">
-        <h1>🎙️ Interactive Voice Assistant</h1>
-        
-        <div className="status-bar">
-          <div className={`status ${isConnected ? 'connected' : 'disconnected'}`}>
-            {status}
+      <div className="main-container">
+        <div className="conversation-panel">
+          <h1>🎙️ Interactive Voice Assistant</h1>
+          
+          <div className="status-bar">
+            <div className={`status ${isConnected ? 'connected' : 'disconnected'}`}>
+              {status}
+            </div>
+            {sessionId && <div className="session-id">Session: {sessionId.slice(0, 8)}...</div>}
           </div>
-          {sessionId && <div className="session-id">Session: {sessionId.slice(0, 8)}...</div>}
-        </div>
 
-        <div className="controls">
-          <div className="device-selector">
-            <label>Audio Device:</label>
-            <select 
-              value={selectedDevice} 
-              onChange={(e) => updateState({ selectedDevice: e.target.value })}
-              disabled={isRecording}
+          <div className="controls">
+            <div className="device-selector">
+              <label>Audio Device:</label>
+              <select 
+                value={selectedDevice} 
+                onChange={(e) => updateState({ selectedDevice: e.target.value })}
+                disabled={isRecording}
+              >
+                {devices.map(device => (
+                  <option key={device.deviceId} value={device.deviceId}>
+                    {device.label || `Microphone ${device.deviceId.slice(0, 8)}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button 
+              className={`main-button ${isRecording ? 'stop' : 'start'}`}
+              onClick={isRecording ? stopConversation : startConversation}
             >
-              {devices.map(device => (
-                <option key={device.deviceId} value={device.deviceId}>
-                  {device.label || `Microphone ${device.deviceId.slice(0, 8)}`}
-                </option>
-              ))}
-            </select>
-          </div>
+              {isRecording ? '⏹️ Stop Conversation' : '▶️ Start Conversation'}
+            </button>
 
-          <button 
-            className={`main-button ${isRecording ? 'stop' : 'start'}`}
-            onClick={isRecording ? stopConversation : startConversation}
-          >
-            {isRecording ? '⏹️ Stop Conversation' : '▶️ Start Conversation'}
-          </button>
-        </div>
-
-        <div className="indicators">
-          <div className={`indicator ${isRecording && !isMicMuted ? 'active' : ''}`}>
-            🎤 {isRecording ? (isMicMuted ? 'Mic Muted' : 'Recording') : 'Not Recording'}
-          </div>
-          <div className={`indicator ${isAssistantSpeaking ? 'active' : ''}`}>
-            🤖 {isAssistantSpeaking ? 'Assistant Speaking' : 'Assistant Idle'}
-          </div>
-        </div>
-
-        <div className="tips">
-          <h3>💡 Tips:</h3>
-          <ul>
-            <li>Speak naturally, the assistant will respond</li>
-            <li>Say 'goodbye' to end the conversation</li>
-            <li>The microphone automatically mutes when the assistant speaks</li>
-            <li>The conversation will continue automatically</li>
-          </ul>
-        </div>
-
-        {conversationHistory.length > 0 && (
-          <div className="history">
-            <h3>Conversation History</h3>
-            {conversationHistory.map((entry, index) => (
-              <div key={index} className={`message ${entry.speaker}`}>
-                <span className="speaker">{entry.speaker === 'user' ? '👤' : '🤖'}</span>
-                <span className="text">{entry.text}</span>
+            {debugMode && (
+              <div className="debug-controls" style={{ marginTop: '10px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button 
+                  onClick={addTestEvent}
+                  style={{
+                    padding: '8px 16px',
+                    background: '#9333ea',
+                    border: 'none',
+                    borderRadius: '4px',
+                    color: 'white',
+                    cursor: 'pointer',
+                    fontSize: '0.875rem'
+                  }}
+                >
+                  ➕ Add Test Event
+                </button>
+                
+                <button 
+                  onClick={requestEventStats}
+                  style={{
+                    padding: '8px 16px',
+                    background: '#059669',
+                    border: 'none',
+                    borderRadius: '4px',
+                    color: 'white',
+                    cursor: 'pointer',
+                    fontSize: '0.875rem'
+                  }}
+                >
+                  📊 Request Stats
+                </button>
               </div>
-            ))}
+            )}
+            
+            <label style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#e0e0e0', marginTop: '10px' }}>
+              <input 
+                type="checkbox" 
+                checked={debugMode} 
+                onChange={(e) => updateState({ debugMode: e.target.checked })}
+              />
+              Debug Mode
+            </label>
           </div>
-        )}
+
+          <div className="indicators">
+            <div className={`indicator ${isRecording && !isMicMuted ? 'active' : ''}`}>
+              🎤 {isRecording ? (isMicMuted ? 'Mic Muted' : 'Recording') : 'Not Recording'}
+            </div>
+            <div className={`indicator ${isAssistantSpeaking ? 'active' : ''}`}>
+              🤖 {isAssistantSpeaking ? 'Assistant Speaking' : 'Assistant Idle'}
+            </div>
+            <div className={`indicator ${eventWsConnected ? 'active' : ''}`}>
+              📡 {eventWsConnected ? 'Events Connected' : 'Events Disconnected'}
+            </div>
+          </div>
+
+          <div className="tips" style={{ marginTop: '20px' }}>
+            <h3>💡 Tips:</h3>
+            <ul>
+              <li>Speak naturally, the assistant will respond</li>
+              <li>Say 'goodbye' to end the conversation</li>
+              <li>Check the Event Log panel to see real-time events</li>
+              <li>Use Debug Mode to see detailed console logs</li>
+            </ul>
+          </div>
+
+          {conversationHistory.length > 0 && (
+            <div className="history">
+              <h3>Conversation History</h3>
+              {conversationHistory.map((entry, index) => (
+                <div key={index} className={`message ${entry.speaker}`}>
+                  <span className="speaker">{entry.speaker === 'user' ? '👤' : '🤖'}</span>
+                  <span className="text">{entry.text}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="event-log-panel">
+          <div className="log-header">
+            <h3>📊 Event Log ({eventLogs.length} events)</h3>
+            <div className="log-controls">
+              <select 
+                className="filter-select"
+                value={eventFilter} 
+                onChange={(e) => updateState({ eventFilter: e.target.value })}
+              >
+                <option value="all">All Events</option>
+                <option value="connection">Connection</option>
+                <option value="conversation">Conversation</option>
+                <option value="transcription">Transcription</option>
+                <option value="audio">Audio</option>
+                <option value="turn">Turn</option>
+                <option value="metrics">Metrics</option>
+                <option value="error">Errors</option>
+                <option value="pipeline">Pipeline</option>
+                <option value="global">Global</option>
+                <option value="system">System</option>
+                <option value="test">Test</option>
+              </select>
+              <button 
+                className={`toggle-button ${autoScrollLogs ? 'active' : ''}`}
+                onClick={() => updateState({ autoScrollLogs: !autoScrollLogs })}
+                title="Auto-scroll"
+              >
+                📜
+              </button>
+              <button 
+                className="clear-button"
+                onClick={clearLogs}
+                title="Clear logs"
+              >
+                🗑️
+              </button>
+            </div>
+          </div>
+
+          <div className="log-content">
+            {getFilteredLogs().length === 0 ? (
+              <div className="log-empty">
+                No events to display
+                {debugMode && (
+                  <>
+                    <br/>
+                    <small style={{ color: '#666', fontSize: '0.8em' }}>
+                      Click "Add Test Event" to verify the log panel is working
+                    </small>
+                  </>
+                )}
+              </div>
+            ) : (
+              getFilteredLogs().map((log) => {
+                const category = getEventCategory(log.eventName);
+                const style = EVENT_STYLES[category] || { icon: '📌', color: '#94a3b8' };
+                const time = new Date(log.timestamp).toLocaleTimeString();
+                
+                return (
+                  <div key={log.id} className={`log-entry ${log.type}`}>
+                    <div className="log-time">{time}</div>
+                    <div className="log-icon" style={{ color: style.color }}>
+                      {style.icon}
+                    </div>
+                    <div className="log-details">
+                      <div className="log-event-name" style={{ color: style.color }}>
+                        {log.eventName}
+                      </div>
+                      {log.data && typeof log.data === 'object' && Object.keys(log.data).length > 0 && (
+                        <div className="log-data">
+                          {Object.entries(log.data).map(([key, value]) => (
+                            <div key={key} className="log-data-item">
+                              <span className="log-data-key">{key}:</span>
+                              <span className="log-data-value">
+                                {typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+            <div ref={el => refs.current.logEndRef = el} />
+          </div>
+        </div>
       </div>
     </div>
   );

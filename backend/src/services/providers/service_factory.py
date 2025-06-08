@@ -1,6 +1,5 @@
 """
 Factory functions for creating STT, LLM, and TTS services.
-Replaces the old audio_pipeline.py functionality.
 """
 from typing import Optional, Tuple, Any
 import os
@@ -26,13 +25,10 @@ def create_stt_service(service_name: str, **kwargs):
         if not api_key:
             raise ValueError("DEEPGRAM_API_KEY not set")
         
-        # Get model from kwargs or use default
         model = kwargs.get("model", "nova-2")
         
-        # Import LiveOptions here to avoid import errors if deepgram not installed
         from deepgram import LiveOptions
         
-        # Create LiveOptions
         live_options = LiveOptions(
             model=model,
             encoding="linear16",
@@ -55,7 +51,6 @@ def create_stt_service(service_name: str, **kwargs):
         if not api_key:
             raise ValueError("OPENAI_API_KEY not set")
         
-        # Get parameters from kwargs or use defaults
         model = kwargs.get("model", "whisper-1")
         language = kwargs.get("language", Language.EN)
         
@@ -76,7 +71,6 @@ def create_llm_service(service_name: str, **kwargs):
         if not api_key:
             raise ValueError("OPENAI_API_KEY not set")
         
-        # Get model from kwargs or use default
         model = kwargs.get("model", "gpt-3.5-turbo")
         
         return OpenAILLMService(
@@ -89,11 +83,9 @@ def create_llm_service(service_name: str, **kwargs):
         if not api_key:
             raise ValueError("DEEPINFRA_API_KEY not set")
         
-        # Get model from kwargs or use default
         model = kwargs.get("model", "meta-llama/Meta-Llama-3.1-70B-Instruct")
         base_url = kwargs.get("base_url", "https://api.deepinfra.com/v1/openai")
         
-        # Extract DeepInfra-specific parameters
         params_dict = {
             "max_tokens": kwargs.get("max_tokens", 4096),
             "temperature": kwargs.get("temperature", 0.7),
@@ -105,7 +97,6 @@ def create_llm_service(service_name: str, **kwargs):
             "extra": kwargs.get("extra", {})
         }
         
-        # Create InputParams instance
         params = DeepInfraLLMService.InputParams(**params_dict)
         
         return DeepInfraLLMService(
@@ -142,7 +133,6 @@ def create_tts_service(service_name: str, **kwargs) -> Tuple[Any, int]:
         if not api_key:
             raise ValueError("DEEPINFRA_API_KEY not set")
 
-        # DeepInfraHttpTTSService requires an aiohttp.ClientSession
         aiohttp_session = kwargs.get("aiohttp_session")
         if aiohttp_session is None:
             raise ValueError("create_tts_service('deepinfra') needs aiohttp_session=<ClientSession>")
@@ -168,9 +158,7 @@ def create_llm_context(llm_service_type: str, system_prompt: str = None, **kwarg
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
     
-    # Add any initial messages from kwargs
     initial_messages = kwargs.get("initial_messages", [])
     messages.extend(initial_messages)
     
-    # For now, we use OpenAILLMContext for all services since it's compatible
     return OpenAILLMContext(messages)
