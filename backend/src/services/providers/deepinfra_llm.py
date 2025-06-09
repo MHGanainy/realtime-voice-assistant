@@ -89,6 +89,7 @@ class DeepInfraLLMService(LLMService):
         
         self._client = httpx.AsyncClient(
             base_url=self._base_url,
+            http2=True,
             headers={
                 "Authorization": f"Bearer {self._api_key}",
                 "Content-Type": "application/json"

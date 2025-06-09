@@ -183,7 +183,7 @@ class WebSocketConnectionHandler:
             vad_analyzer=vad_analyzer,
             vad_audio_passthrough=True,
             serializer=ProtobufFrameSerializer(),
-            audio_frame_size=config.sample_rate // 100,
+            audio_frame_size=config.sample_rate // 200,
             send_silent_audio=False
         )
         

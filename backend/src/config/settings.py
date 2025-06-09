@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     eleven_api_key: Optional[str] = Field(default=None, env="ELEVEN_API_KEY")
     deepinfra_api_key: Optional[str] = Field(default=None, env="DEEPINFRA_API_KEY")
     speechify_api_key: Optional[str] = Field(default=None, env="SPEECHIFY_API_KEY")
+    together_api_key: Optional[str] = Field(default=None, env="TOGETHER_API_KEY")
+    rime_api_key: Optional[str] = Field(default=None, env="RIME_API_KEY"),
+    riva_api_key: Optional[str] = Field(default=None, env="RIVA_API_KEY"),
+    groq_api_key: Optional[str] = Field(default=None, env="GROQ_API_KEY")
     
     # Service Defaults
     default_stt_provider: str = Field(default="deepgram", env="DEFAULT_STT_PROVIDER")
@@ -87,7 +91,11 @@ class Settings(BaseSettings):
             "openai": bool(self.openai_api_key),
             "elevenlabs": bool(self.eleven_api_key),
             "deepinfra": bool(self.deepinfra_api_key),
-            "speechify": bool(self.speechify_api_key)
+            "speechify": bool(self.speechify_api_key),
+            "together": bool(self.together_api_key),
+            "rime": bool(self.rime_api_key),
+            "riva": bool(self.riva_api_key),
+            "groq": bool(self.groq_api_key)
         }
     
     def get_service_api_key(self, service: str) -> Optional[str]:
@@ -97,7 +105,11 @@ class Settings(BaseSettings):
             "openai": self.openai_api_key,
             "elevenlabs": self.eleven_api_key,
             "deepinfra": self.deepinfra_api_key,
-            "speechify": self.speechify_api_key
+            "speechify": self.speechify_api_key,
+            "together": self.together_api_key,
+            "rime": self.rime_api_key,
+            "riva": self.riva_api_key,
+            "groq": self.groq_api_key
         }
         return key_map.get(service)
 

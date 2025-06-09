@@ -48,6 +48,38 @@ export const TTS_PROVIDERS = {
     voice: 'kristy',
     displayName: 'Speechify - Simba English (Kristy)',
     description: 'Natural English voice using Simba English model'
+  },
+  rime: {
+    name: 'Rime',
+    provider: 'rime',
+    model: 'mistv2',
+    voice: 'cove',
+    displayName: 'Rime - Mistv2 (cove)',
+    description: 'Natural English voice using Rime Mistv2 model'
+  },
+  riva: {
+    name: 'Riva',
+    provider: 'riva',
+    model: 'radtts-hifigan-tts',
+    voice: "English-US-RadTTS.Female-1",
+    displayName: 'Riva - Radtts Hifigan TTS',
+    description: 'Riva Radtts Hifigan TTS model'
+  },
+  fastpitch: {
+    name: 'Riva',
+    provider: 'riva',
+    model: 'fastpitch-hifigan-tts',
+    voice: 'English-US.Female-1',
+    displayName: 'Riva - Fastpitch Hifigan TTS',
+    description: 'Riva Fastpitch Hifigan TTS model'
+  },
+  groq: {
+    name: 'Groq',
+    provider: 'groq',
+    model: 'playai-tts',
+    voice: 'Celeste-PlayAI',
+    displayName: 'Groq - PlayAI TTS',
+    description: 'Groq PlayAI TTS model'
   }
 };
 
@@ -83,7 +115,21 @@ deepinfra: {
   model: 'meta-llama/Meta-Llama-3.1-70B-Instruct',
   displayName: 'DeepInfra - Llama 3.1 70B',
   description: 'Powerful Meta Llama 3.1 70B Instruct model'
-}
+},
+together: {
+  name: 'Together',
+  provider: 'together',
+  model: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+  displayName: 'Together - Llama 3.3 70B Instruct Turbo',
+  description: 'Powerful Together Llama 3.3 70B Instruct Turbo model'
+},
+groq: {
+  name: 'Groq',
+  provider: 'groq',
+  model: 'llama-3.3-70b-versatile',
+  displayName: 'Groq - Llama 3.3 70B Versatile',
+  description: 'Powerful Groq Llama 3.3 70B Versatile model'
+},
 };
 
 // Default LLM provider
@@ -120,6 +166,20 @@ openai: {
   model: 'gpt-4o-transcribe',
   displayName: 'OpenAI - GPT-4 Transcribe',
   description: 'Advanced GPT-4 based transcription'
+},
+riva: {
+  name: 'Riva',
+  provider: 'riva',
+  model: 'parakeet-ctc-1.1b-asr',
+  displayName: 'Riva - Parakeet CTC 1.1B ASR',
+  description: 'Riva Parakeet CTC 1.1B ASR model'
+},
+groq: {
+  name: 'Groq',
+  provider: 'groq',
+  model: 'distil-whisper-large-v3-en',
+  displayName: 'Groq - Distil Whisper Large V3 EN',
+  description: 'Groq Distil Whisper Large V3 EN model'
 }
 };
 
