@@ -22,6 +22,7 @@ from pipecat.transcriptions.language import Language
 from src.services.providers.deepinfra_llm import DeepInfraLLMService
 from src.services.providers.deepinfra_tts import DeepInfraHttpTTSService
 from src.services.providers.speechify_tts import SpeechifyTTSService
+from pipecat.services.assemblyai.stt import AssemblyAISTTService
 from pipecat.services.groq.llm import GroqLLMService
 from pipecat.services.groq.stt import GroqSTTService
 from pipecat.services.groq.tts import GroqTTSService
@@ -70,6 +71,42 @@ def create_stt_service(service_name: str, **kwargs):
             model=model,
             language=language
         )
+    
+    elif service_name == "assemblyai":
+        api_key = os.getenv("ASSEMBLY_API_KEY")
+        if not api_key:
+            raise ValueError("ASSEMBLY_API_KEY not set")
+        
+        # Get connection parameters if provided
+        connection_params = kwargs.get("connection_params")
+        
+        # If no connection params provided, create with defaults
+        if connection_params is None:
+            from pipecat.services.assemblyai.stt import AssemblyAIConnectionParams
+            
+            connection_params = AssemblyAIConnectionParams(
+                sample_rate=kwargs.get("sample_rate", 16000),
+                encoding=kwargs.get("encoding", "pcm_s16le"),
+                formatted_finals=kwargs.get("formatted_finals", True),
+                word_finalization_max_wait_time=kwargs.get("word_finalization_max_wait_time"),
+                end_of_turn_confidence_threshold=kwargs.get("end_of_turn_confidence_threshold"),
+                min_end_of_turn_silence_when_confident=kwargs.get("min_end_of_turn_silence_when_confident"),
+                max_turn_silence=kwargs.get("max_turn_silence")
+            )
+        
+        # Build the service kwargs
+        service_kwargs = {
+            "api_key": api_key,
+            "connection_params": connection_params,
+            "vad_force_turn_endpoint": kwargs.get("vad_force_turn_endpoint", True),
+            "language": Language.EN,  # AssemblyAI only supports English for streaming
+        }
+        
+        # Only add api_endpoint_base_url if it's provided
+        if "api_endpoint_base_url" in kwargs:
+            service_kwargs["api_endpoint_base_url"] = kwargs["api_endpoint_base_url"]
+        
+        return AssemblyAISTTService(**service_kwargs)
     
     elif service_name == "riva":
         api_key = os.getenv("RIVA_API_KEY")
@@ -127,7 +164,11 @@ def create_llm_service(service_name: str, **kwargs):
         
         return OpenAILLMService(
             api_key=api_key,
-            model=model
+            model=model,
+            
+
+            
+
         )
     
     elif service_name == "deepinfra":

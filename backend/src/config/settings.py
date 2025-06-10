@@ -41,7 +41,8 @@ class Settings(BaseSettings):
     together_api_key: Optional[str] = Field(default=None, env="TOGETHER_API_KEY")
     rime_api_key: Optional[str] = Field(default=None, env="RIME_API_KEY"),
     riva_api_key: Optional[str] = Field(default=None, env="RIVA_API_KEY"),
-    groq_api_key: Optional[str] = Field(default=None, env="GROQ_API_KEY")
+    groq_api_key: Optional[str] = Field(default=None, env="GROQ_API_KEY"),
+    assembly_api_key: Optional[str] = Field(default=None, env="ASSEMBLY_API_KEY")
     
     # Service Defaults
     default_stt_provider: str = Field(default="deepgram", env="DEFAULT_STT_PROVIDER")
@@ -95,7 +96,8 @@ class Settings(BaseSettings):
             "together": bool(self.together_api_key),
             "rime": bool(self.rime_api_key),
             "riva": bool(self.riva_api_key),
-            "groq": bool(self.groq_api_key)
+            "groq": bool(self.groq_api_key),
+            "assembly": bool(self.assembly_api_key)
         }
     
     def get_service_api_key(self, service: str) -> Optional[str]:
@@ -109,7 +111,8 @@ class Settings(BaseSettings):
             "together": self.together_api_key,
             "rime": self.rime_api_key,
             "riva": self.riva_api_key,
-            "groq": self.groq_api_key
+            "groq": self.groq_api_key,
+            "assembly": self.assembly_api_key
         }
         return key_map.get(service)
 

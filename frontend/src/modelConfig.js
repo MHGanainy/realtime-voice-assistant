@@ -105,17 +105,11 @@ export const LLM_PROVIDERS = {
 openai: {
   name: 'OpenAI',
   provider: 'openai',
-  model: 'gpt-3.5-turbo',
-  displayName: 'OpenAI - GPT-3.5 Turbo',
-  description: 'Fast and efficient GPT-3.5 Turbo model'
+  model: 'gpt-4o-mini',
+  displayName: 'OpenAI - GPT-4o Mini',
+  description: 'Fast and efficient GPT-4o Mini model'
 },
-deepinfra: {
-  name: 'DeepInfra',
-  provider: 'deepinfra',
-  model: 'meta-llama/Meta-Llama-3.1-70B-Instruct',
-  displayName: 'DeepInfra - Llama 3.1 70B',
-  description: 'Powerful Meta Llama 3.1 70B Instruct model'
-},
+
 together: {
   name: 'Together',
   provider: 'together',
@@ -180,6 +174,13 @@ groq: {
   model: 'distil-whisper-large-v3-en',
   displayName: 'Groq - Distil Whisper Large V3 EN',
   description: 'Groq Distil Whisper Large V3 EN model'
+},
+assemblyai: {
+  name: 'AssemblyAI',
+  provider: 'assemblyai',
+  model: 'assemblyai',
+  displayName: 'AssemblyAI - AssemblyAI STT',
+  description: 'AssemblyAI AssemblyAI STT model'
 }
 };
 
