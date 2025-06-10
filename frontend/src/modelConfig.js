@@ -80,7 +80,55 @@ export const TTS_PROVIDERS = {
     voice: 'Celeste-PlayAI',
     displayName: 'Groq - PlayAI TTS',
     description: 'Groq PlayAI TTS model'
-  }
+  },
+  google_chirp_hd_charon: {
+    name: 'Google Cloud',
+    provider: 'google',
+    model: 'chirp-hd',
+    voice: 'en-US-Chirp3-HD-Charon',
+    displayName: 'Google - Chirp HD Charon (Default)',
+    description: 'Low-latency streaming voice (~$16/million chars)'
+  },
+  google_standard_female_a: {
+    name: 'Google Cloud',
+    provider: 'google',
+    model: 'standard',
+    voice: 'en-US-Standard-A',
+    displayName: 'Google - Standard  A',
+    description: 'Cost-effective standard voice ($4/million chars)'
+  },
+  google_standard_male_b: {
+    name: 'Google Cloud',
+    provider: 'google',
+    model: 'standard',
+    voice: 'en-US-Standard-B',
+    displayName: 'Google - Standard  B',
+    description: 'Cost-effective standard voice ($4/million chars)'
+  },
+  google_wavenet_female_a: {
+    name: 'Google Cloud',
+    provider: 'google',
+    model: 'wavenet',
+    voice: 'en-US-Wavenet-A',
+    displayName: 'Google - WaveNet  A',
+    description: 'Premium neural voice with natural inflection ($16/million chars)'
+  },
+  google_wavenet_male_b: {
+    name: 'Google Cloud',
+    provider: 'google',
+    model: 'wavenet',
+    voice: 'en-US-Wavenet-B',
+    displayName: 'Google - WaveNet  B',
+    description: 'Premium neural voice with natural inflection ($16/million chars)'
+  },
+  google_neural2_female_a: {
+    name: 'Google Cloud',
+    provider: 'google',
+    model: 'neural2',
+    voice: 'en-US-Neural2-A',
+    displayName: 'Google - Neural2  A',
+    description: 'Latest neural technology for high-quality speech ($16/million chars)'
+  },
 };
 
 // Default TTS provider

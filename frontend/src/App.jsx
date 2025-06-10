@@ -29,14 +29,20 @@ function App() {
     eventWsConnected: false,
     autoScrollLogs: true,
     enableProcessors: true,
-    enableInterruptions: true,  // Added interruptions toggle
+    enableInterruptions: true,
     systemPrompt: 'You are a helpful assistant. Keep your responses brief and conversational.',
     showSystemPrompt: false,
+    // TTS state with provider key
+    ttsProviderKey: DEFAULT_TTS_PROVIDER,
     ttsProvider: defaultTTS.provider,
     ttsModel: defaultTTS.model,
     ttsVoice: defaultTTS.voice,
+    // LLM state with provider key
+    llmProviderKey: DEFAULT_LLM_PROVIDER,
     llmProvider: defaultLLM.provider,
     llmModel: defaultLLM.model,
+    // STT state with provider key
+    sttProviderKey: DEFAULT_STT_PROVIDER,
     sttProvider: defaultSTT.provider,
     sttModel: defaultSTT.model,
     metrics: {
@@ -73,9 +79,9 @@ function App() {
     status, conversationHistory, devices, selectedDevice, isMicMuted,
     eventLogs, eventWsConnected, autoScrollLogs,
     enableProcessors, enableInterruptions, systemPrompt, showSystemPrompt,
-    ttsProvider, ttsModel, ttsVoice,
-    llmProvider, llmModel,
-    sttProvider, sttModel,
+    ttsProviderKey, ttsProvider, ttsModel, ttsVoice,
+    llmProviderKey, llmProvider, llmModel,
+    sttProviderKey, sttProvider, sttModel,
     metrics
   } = state;
 
@@ -291,7 +297,7 @@ function App() {
         { 
           systemPrompt: state.systemPrompt, 
           enableProcessors: state.enableProcessors,
-          enableInterruptions: state.enableInterruptions,  // Pass interruptions setting
+          enableInterruptions: state.enableInterruptions,
           ttsProvider: state.ttsProvider,
           ttsModel: state.ttsModel,
           ttsVoice: state.ttsVoice,
@@ -424,9 +430,9 @@ function App() {
                 Speech Recognition:
               </label>
               <select 
-                value={sttProvider} 
+                value={sttProviderKey} 
                 onChange={(e) => {
-                  const provider = e.target.value;
+                  const providerKey = e.target.value;
                   const wasRecording = isRecording;
                   
                   // Stop current conversation if active
@@ -435,8 +441,9 @@ function App() {
                   }
                   
                   // Update STT settings from config
-                  const sttConfig = getSTTConfig(provider);
+                  const sttConfig = getSTTConfig(providerKey);
                   updateState({ 
+                    sttProviderKey: providerKey,
                     sttProvider: sttConfig.provider,
                     sttModel: sttConfig.model
                   });
@@ -472,7 +479,7 @@ function App() {
                 fontSize: '0.75rem',
                 color: '#666'
               }}>
-                {getSTTConfig(sttProvider).description}
+                {getSTTConfig(sttProviderKey).description}
               </div>
             </div>
 
@@ -487,9 +494,9 @@ function App() {
                 LLM Model:
               </label>
               <select 
-                value={llmProvider} 
+                value={llmProviderKey} 
                 onChange={(e) => {
-                  const provider = e.target.value;
+                  const providerKey = e.target.value;
                   const wasRecording = isRecording;
                   
                   // Stop current conversation if active
@@ -498,8 +505,9 @@ function App() {
                   }
                   
                   // Update LLM settings from config
-                  const llmConfig = getLLMConfig(provider);
+                  const llmConfig = getLLMConfig(providerKey);
                   updateState({ 
+                    llmProviderKey: providerKey,
                     llmProvider: llmConfig.provider,
                     llmModel: llmConfig.model
                   });
@@ -535,7 +543,7 @@ function App() {
                 fontSize: '0.75rem',
                 color: '#666'
               }}>
-                {getLLMConfig(llmProvider).description}
+                {getLLMConfig(llmProviderKey).description}
               </div>
             </div>
 
@@ -550,9 +558,9 @@ function App() {
                 TTS Provider:
               </label>
               <select 
-                value={ttsProvider} 
+                value={ttsProviderKey} 
                 onChange={(e) => {
-                  const provider = e.target.value;
+                  const providerKey = e.target.value;
                   const wasRecording = isRecording;
                   
                   // Stop current conversation if active
@@ -561,8 +569,9 @@ function App() {
                   }
                   
                   // Update TTS settings from config
-                  const ttsConfig = getTTSConfig(provider);
+                  const ttsConfig = getTTSConfig(providerKey);
                   updateState({ 
+                    ttsProviderKey: providerKey,
                     ttsProvider: ttsConfig.provider,
                     ttsModel: ttsConfig.model,
                     ttsVoice: ttsConfig.voice
@@ -599,7 +608,7 @@ function App() {
                 fontSize: '0.75rem',
                 color: '#666'
               }}>
-                {getTTSConfig(ttsProvider).description}
+                {getTTSConfig(ttsProviderKey).description}
               </div>
             </div>
 

@@ -44,6 +44,21 @@ class Settings(BaseSettings):
     groq_api_key: Optional[str] = Field(default=None, env="GROQ_API_KEY"),
     assembly_api_key: Optional[str] = Field(default=None, env="ASSEMBLY_API_KEY")
     
+    # Google Cloud Credentials
+    google_project_id: Optional[str] = Field(default=None, env="GOOGLE_PROJECT_ID")
+    google_private_key_id: Optional[str] = Field(default=None, env="GOOGLE_PRIVATE_KEY_ID")
+    google_private_key: Optional[str] = Field(default=None, env="GOOGLE_PRIVATE_KEY")
+    google_client_email: Optional[str] = Field(default=None, env="GOOGLE_CLIENT_EMAIL")
+    google_client_id: Optional[str] = Field(default=None, env="GOOGLE_CLIENT_ID")
+    google_auth_uri: Optional[str] = Field(default="https://accounts.google.com/o/oauth2/auth", env="GOOGLE_AUTH_URI")
+    google_token_uri: Optional[str] = Field(default="https://oauth2.googleapis.com/token", env="GOOGLE_TOKEN_URI")
+    google_auth_provider_x509_cert_url: Optional[str] = Field(
+        default="https://www.googleapis.com/oauth2/v1/certs", 
+        env="GOOGLE_AUTH_PROVIDER_X509_CERT_URL"
+    )
+    google_client_x509_cert_url: Optional[str] = Field(default=None, env="GOOGLE_CLIENT_X509_CERT_URL")
+    
+
     # Service Defaults
     default_stt_provider: str = Field(default="deepgram", env="DEFAULT_STT_PROVIDER")
     default_stt_model: str = Field(default="nova-2", env="DEFAULT_STT_MODEL")
@@ -84,7 +99,30 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
-    
+    def get_google_credentials_json(self) -> Optional[dict]:
+        """Build Google credentials JSON from environment variables"""
+        if not all([
+            self.google_project_id,
+            self.google_private_key_id,
+            self.google_private_key,
+            self.google_client_email,
+            self.google_client_id
+        ]):
+            return None
+        
+        return {
+            "type": "service_account",
+            "project_id": self.google_project_id,
+            "private_key_id": self.google_private_key_id,
+            "private_key": self.google_private_key.replace('\\n', '\n'),  # Handle escaped newlines
+            "client_email": self.google_client_email,
+            "client_id": self.google_client_id,
+            "auth_uri": self.google_auth_uri,
+            "token_uri": self.google_token_uri,
+            "auth_provider_x509_cert_url": self.google_auth_provider_x509_cert_url,
+            "client_x509_cert_url": self.google_client_x509_cert_url or f"https://www.googleapis.com/robot/v1/metadata/x509/{self.google_client_email.replace('@', '%40')}",
+            "universe_domain": "googleapis.com"
+        }
     def validate_api_keys(self) -> dict:
         """Validate which API keys are configured"""
         return {
@@ -97,7 +135,8 @@ class Settings(BaseSettings):
             "rime": bool(self.rime_api_key),
             "riva": bool(self.riva_api_key),
             "groq": bool(self.groq_api_key),
-            "assembly": bool(self.assembly_api_key)
+            "assembly": bool(self.assembly_api_key),
+            "google": bool(self.get_google_credentials_json()),
         }
     
     def get_service_api_key(self, service: str) -> Optional[str]:

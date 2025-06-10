@@ -4,6 +4,10 @@ Factory functions for creating STT, LLM, and TTS services.
 from typing import Optional, Tuple, Any
 import os
 import logging
+from pipecat.services.google.tts import GoogleTTSService, GoogleHttpTTSService
+import json
+import tempfile
+from src.config.settings import get_settings
 
 from pipecat.services.deepgram.stt import DeepgramSTTService
 from pipecat.services.deepgram.tts import DeepgramTTSService
@@ -165,10 +169,6 @@ def create_llm_service(service_name: str, **kwargs):
         return OpenAILLMService(
             api_key=api_key,
             model=model,
-            
-
-            
-
         )
     
     elif service_name == "deepinfra":
@@ -329,11 +329,11 @@ def create_tts_service(service_name: str, **kwargs) -> Tuple[Any, int]:
             api_key=api_key,
             voice_id="cove",
             model="mistv2",
-    params=RimeTTSService.InputParams(
-        language=Language.EN,
-        speed_alpha=1.0
-    )
-), sample_rate
+            params=RimeTTSService.InputParams(
+                language=Language.EN,
+                speed_alpha=1.0
+            )
+        ), sample_rate
     elif service_name == "riva":
         api_key = os.getenv("RIVA_API_KEY")
         if not api_key:
@@ -342,9 +342,9 @@ def create_tts_service(service_name: str, **kwargs) -> Tuple[Any, int]:
         # Which model?  default = our #1 pick
         model_name = kwargs.get("model", "radtts-hifigan-tts")
         RIVA_TTS_MODEL_MAP = {
-    "radtts-hifigan-tts":  "5e607c81-7aa6-44ce-a11d-9e08f0a3fe49",   # ← new
-    "fastpitch-hifigan-tts": "0149dedb-2be8-4195-b9a0-e57e0e14f972",
-}
+            "radtts-hifigan-tts":  "5e607c81-7aa6-44ce-a11d-9e08f0a3fe49",   # ← new
+            "fastpitch-hifigan-tts": "0149dedb-2be8-4195-b9a0-e57e0e14f972",
+        }
         # Look up function-id or allow override
         function_id = kwargs.get(
             "function_id",
@@ -359,7 +359,7 @@ def create_tts_service(service_name: str, **kwargs) -> Tuple[Any, int]:
         # Quality flag: 20 = best, lower = faster
         quality = kwargs.get("quality", 20)
 
-        # All Riva voices are mono PCM - we’ll output 24 kHz to match most pipelines
+        # All Riva voices are mono PCM - we'll output 24 kHz to match most pipelines
         sample_rate = kwargs.get("sample_rate", 24000)
 
         tts = RivaTTSService(
@@ -389,12 +389,97 @@ def create_tts_service(service_name: str, **kwargs) -> Tuple[Any, int]:
             model_name=model,
             voice_id="Celeste-PlayAI",
             params=GroqTTSService.InputParams(
-        language=Language.EN,
-        speed=1.0,
-        seed=42
-    )
-), sample_rate
-
+                language=Language.EN,
+                speed=1.0,
+                seed=42
+            )
+        ), sample_rate
+    elif service_name == "google":    
+        # Get settings
+        settings = get_settings()
+        
+        # Try to get credentials from environment variables first
+        google_creds = settings.get_google_credentials_json()
+        
+        if google_creds:
+            # Write credentials to a temporary file
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+                json.dump(google_creds, f)
+                credentials_path = f.name
+        else:
+            # Fall back to GOOGLE_APPLICATION_CREDENTIALS if set
+            credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+            if not credentials_path:
+                raise ValueError("Google credentials not found in environment variables or GOOGLE_APPLICATION_CREDENTIALS")
+        
+        # Get voice_id and determine which service to use
+        voice_id = kwargs.get("voice_id", "en-US-Chirp3-HD-Charon")
+        
+        # Check if this is a Chirp HD or Journey voice (streaming only)
+        is_chirp_hd = "chirp" in voice_id.lower() and ("hd" in voice_id.lower() or "chirp3" in voice_id.lower())
+        is_journey = "journey" in voice_id.lower()
+        
+        # Determine if we should use streaming based on voice type
+        use_streaming = kwargs.get("use_streaming", is_chirp_hd or is_journey)
+        logger.info(f"########################################################")
+        logger.info(f"voice_id: {voice_id}")
+        logger.info(f"is_chirp_hd: {is_chirp_hd}")
+        logger.info(f"is_journey: {is_journey}")
+        logger.info(f"use_streaming: {use_streaming}")
+        logger.info(f"Using GoogleTTSService (streaming) with voice: {voice_id}")
+        logger.info(f"########################################################")
+        # Set sample rate based on voice type
+        if is_chirp_hd or is_journey:
+            sample_rate = kwargs.get("sample_rate", 24000)  # Chirp HD works best at 24kHz
+        else:
+            sample_rate = kwargs.get("sample_rate", 16000)  # Standard voices at 16kHz
+        
+        # Create params if needed
+        params = None
+        if any(k in kwargs for k in ["language", "gender", "pitch", "rate", "volume", "emphasis", "google_style"]):
+            # Streaming service only supports language
+            if use_streaming:
+                params = GoogleTTSService.InputParams(
+                    language=kwargs.get("language", Language.EN)
+                )
+            else:
+                # Non-streaming service supports all parameters
+                params = GoogleHttpTTSService.InputParams(
+                    language=kwargs.get("language", Language.EN),
+                    gender=kwargs.get("gender"),
+                    pitch=kwargs.get("pitch"),
+                    rate=kwargs.get("rate"),
+                    volume=kwargs.get("volume"),
+                    emphasis=kwargs.get("emphasis"),
+                    google_style=kwargs.get("google_style")
+                )
+        
+        # Create the appropriate service
+        if use_streaming:
+            logger.info(f"voice_id: {voice_id} and use_streaming: {use_streaming}")
+            # Streaming service for Chirp HD voices
+            service = GoogleTTSService(
+                credentials_path=credentials_path,
+                voice_id=voice_id,
+                sample_rate=sample_rate,
+                params=params
+            )
+        else:
+            logger.info(f"Using GoogleHttpTTSService (non-streaming) with voice: {voice_id}")
+            # Non-streaming service for all other voices
+            service = GoogleHttpTTSService(
+                credentials_path=credentials_path,
+                voice_id=voice_id,
+                sample_rate=sample_rate,
+                params=params
+            )
+        
+        # Clean up temp file if we created one
+        if google_creds and credentials_path:
+            import atexit
+            atexit.register(lambda: os.unlink(credentials_path))
+        
+        return service, sample_rate
     else:
         raise ValueError(f"Unknown TTS service: {service_name}")
 

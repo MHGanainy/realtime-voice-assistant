@@ -19,3 +19,4 @@ pydub
 pipecat-ai[riva]
 httpx[http2]
 pipecat-ai[groq]
+pipecat-ai[google]
