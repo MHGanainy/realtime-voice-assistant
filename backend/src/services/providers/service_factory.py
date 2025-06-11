@@ -30,6 +30,7 @@ from pipecat.services.assemblyai.stt import AssemblyAISTTService
 from pipecat.services.groq.llm import GroqLLMService
 from pipecat.services.groq.stt import GroqSTTService
 from pipecat.services.groq.tts import GroqTTSService
+from pipecat.services.aws.tts import AWSPollyTTSService
 
 logger = logging.getLogger(__name__)
 
@@ -480,6 +481,54 @@ def create_tts_service(service_name: str, **kwargs) -> Tuple[Any, int]:
             atexit.register(lambda: os.unlink(credentials_path))
         
         return service, sample_rate
+    elif service_name == "aws_polly":
+        # Get AWS credentials from environment
+        api_key = os.getenv("AWS_SECRET_ACCESS_KEY")
+        aws_access_key_id = os.getenv("AWS_ACCESS_KEY_ID")
+        aws_session_token = os.getenv("AWS_SESSION_TOKEN")  # Optional
+        region = os.getenv("AWS_REGION", "us-east-1")
+        
+        if not api_key or not aws_access_key_id:
+            raise ValueError("AWS_SECRET_ACCESS_KEY and AWS_ACCESS_KEY_ID must be set")
+        
+        # Default sample rate for AWS Polly
+        sample_rate = 24000 #kwargs.get("sample_rate", 16000)
+        
+        # Get voice and engine settings
+        voice_id = kwargs.get("voice_id", "Joanna")
+        # Important: look for 'model' first (to match other TTS services), then 'engine'
+        engine = kwargs.get("model") or kwargs.get("engine", "neural")
+        
+        # Create params
+        params_dict = {
+            "engine": engine,
+            "language": kwargs.get("language", Language.EN)
+        }
+        
+        # Add prosody parameters only if provided and engine supports them
+        if engine in ["standard", "neural"]:
+            if kwargs.get("pitch"):
+                params_dict["pitch"] = kwargs.get("pitch")
+            if kwargs.get("rate"):
+                params_dict["rate"] = kwargs.get("rate")
+            if kwargs.get("volume"):
+                params_dict["volume"] = kwargs.get("volume")
+        elif engine == "generative":
+            # Generative engine only supports rate in a different format
+            if kwargs.get("rate"):
+                params_dict["rate"] = kwargs.get("rate")
+        
+        params = AWSPollyTTSService.InputParams(**params_dict)
+        
+        return AWSPollyTTSService(
+            api_key=api_key,
+            aws_access_key_id=aws_access_key_id,
+            aws_session_token=aws_session_token,
+            region=region,
+            voice_id=voice_id,
+            sample_rate=sample_rate,
+            params=params
+        ), sample_rate
     else:
         raise ValueError(f"Unknown TTS service: {service_name}")
 

@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     riva_api_key: Optional[str] = Field(default=None, env="RIVA_API_KEY"),
     groq_api_key: Optional[str] = Field(default=None, env="GROQ_API_KEY"),
     assembly_api_key: Optional[str] = Field(default=None, env="ASSEMBLY_API_KEY")
+    aws_secret_access_key: Optional[str] = Field(default=None, env="AWS_SECRET_ACCESS_KEY")
+    aws_access_key_id: Optional[str] = Field(default=None, env="AWS_ACCESS_KEY_ID")
     
     # Google Cloud Credentials
     google_project_id: Optional[str] = Field(default=None, env="GOOGLE_PROJECT_ID")
@@ -137,6 +139,8 @@ class Settings(BaseSettings):
             "groq": bool(self.groq_api_key),
             "assembly": bool(self.assembly_api_key),
             "google": bool(self.get_google_credentials_json()),
+            "aws_access_key_id": bool(self.aws_access_key_id),
+            "aws_secret_access_key": bool(self.aws_secret_access_key)
         }
     
     def get_service_api_key(self, service: str) -> Optional[str]:
@@ -151,7 +155,9 @@ class Settings(BaseSettings):
             "rime": self.rime_api_key,
             "riva": self.riva_api_key,
             "groq": self.groq_api_key,
-            "assembly": self.assembly_api_key
+            "assembly": self.assembly_api_key,
+            "aws_access_key_id": self.aws_access_key_id,
+            "aws_secret_access_key": self.aws_secret_access_key
         }
         return key_map.get(service)
 
