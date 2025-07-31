@@ -120,10 +120,15 @@ export const createConversationWebSocket = (sessionId, params, refs, updateState
     tts_model: params.ttsModel || 'hexgrad/Kokoro-82M',
     tts_voice: params.ttsVoice || 'af_bella',
     system_prompt: params.systemPrompt,
-    enable_interruptions: (params.enableInterruptions ?? true).toString(),  // Changed to use parameter with default true
+    enable_interruptions: (params.enableInterruptions ?? true).toString(),
     vad_enabled: 'true',
     enable_processors: params.enableProcessors.toString()
   });
+  
+  // Add correlation token if provided
+  if (params.correlationToken) {
+    queryParams.append('correlation_token', params.correlationToken);
+  }
   
   const ws = new WebSocket(`${CONFIG.WS_BASE_URL}/ws/conversation?${queryParams}`);
   ws.binaryType = 'arraybuffer';
@@ -138,7 +143,8 @@ export const createConversationWebSocket = (sessionId, params, refs, updateState
     // Log the connection settings
     addEventLog('system:connection:settings', {
       processors_enabled: params.enableProcessors,
-      interruptions_enabled: params.enableInterruptions ?? true,  // Log interruptions setting
+      interruptions_enabled: params.enableInterruptions ?? true,
+      correlation_token: params.correlationToken,
       stt_provider: params.sttProvider,
       stt_model: params.sttModel,
       llm_provider: params.llmProvider,

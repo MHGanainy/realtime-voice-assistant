@@ -12,6 +12,7 @@ import aiohttp
 from src.domains.conversation import Participant, ConversationConfig
 from src.services.conversation_manager import get_conversation_manager
 from src.services.pipeline_factory import get_pipeline_factory
+from src.services.transcript_storage import get_transcript_storage
 from src.config.settings import get_settings
 from src.events import EventBus, get_event_bus
 from pipecat.transports.network.fastapi_websocket import (
@@ -30,6 +31,7 @@ class WebSocketConnectionHandler:
     def __init__(self):
         self.conversation_manager = get_conversation_manager()
         self.pipeline_factory = get_pipeline_factory()
+        self.transcript_storage = get_transcript_storage()
         self._settings = get_settings()
         self._event_bus = get_event_bus()
         self._active_connections: Dict[str, Dict[str, Any]] = {}
@@ -49,10 +51,14 @@ class WebSocketConnectionHandler:
             await websocket.accept()
             logger.info(f"WebSocket connection established: {connection_id}")
             
+            # Extract correlation token from query params
+            correlation_token = websocket.query_params.get("correlation_token", None)
+            
             await self._event_bus.emit(
                 f"connection:{connection_id}:established",
                 connection_id=connection_id,
                 session_id=session_id,
+                correlation_token=correlation_token,
                 client_ip=websocket.client.host if websocket.client else None,
                 user_agent=websocket.headers.get("user-agent")
             )
@@ -62,7 +68,10 @@ class WebSocketConnectionHandler:
                 session_id=session_id,
                 user_agent=websocket.headers.get("user-agent"),
                 ip_address=websocket.client.host if websocket.client else None,
-                metadata={"session_id": session_id}
+                metadata={
+                    "session_id": session_id,
+                    "correlation_token": correlation_token
+                }
             )
             
             config = self._build_config_from_params(websocket)
@@ -74,6 +83,23 @@ class WebSocketConnectionHandler:
                 participant=participant,
                 config=config
             )
+            
+            # Create transcript for this conversation
+            transcript = await self.transcript_storage.create_transcript(
+                session_id=session_id,
+                conversation_id=conversation.id,
+                correlation_token=correlation_token
+            )
+            
+            # Store correlation token in transcript metadata
+            if correlation_token:
+                await self.transcript_storage.update_metadata(
+                    conversation_id=conversation.id,
+                    metadata={
+                        "simulation_attempt_id": correlation_token,
+                        "connected_at": datetime.utcnow().isoformat()
+                    }
+                )
             
             aiohttp_session = aiohttp.ClientSession()
             self._aiohttp_sessions[connection_id] = aiohttp_session
@@ -97,7 +123,8 @@ class WebSocketConnectionHandler:
                 "pipeline": pipeline,
                 "aiohttp_session": aiohttp_session,
                 "connected_at": datetime.utcnow(),
-                "processors_enabled": enable_processors
+                "processors_enabled": enable_processors,
+                "correlation_token": correlation_token
             }
             
             success = await self.conversation_manager.start_conversation(
@@ -118,7 +145,8 @@ class WebSocketConnectionHandler:
             
             logger.info(
                 f"Starting pipeline for conversation {conversation.id} "
-                f"(processors {'enabled' if enable_processors else 'disabled'})"
+                f"(processors {'enabled' if enable_processors else 'disabled'}, "
+                f"correlation: {correlation_token or 'none'})"
             )
             
             await self.conversation_manager.run_pipeline_for_conversation(
@@ -199,12 +227,17 @@ class WebSocketConnectionHandler:
         conn_info = self._active_connections.get(connection_id)
         if conn_info:
             conversation = conn_info["conversation"]
+            
+            # End the transcript
+            await self.transcript_storage.end_transcript(conversation.id)
+            
             await self.conversation_manager.end_conversation(conversation.id)
             
             await self._event_bus.emit(
                 f"connection:{connection_id}:closed",
                 connection_id=connection_id,
                 session_id=conversation.participant.session_id,
+                correlation_token=conn_info.get("correlation_token"),
                 reason="client_disconnect",
                 processors_enabled=conn_info.get("processors_enabled", True)
             )
@@ -217,6 +250,13 @@ class WebSocketConnectionHandler:
         if conn_info:
             websocket = conn_info["websocket"]
             conversation = conn_info["conversation"]
+            
+            # End the transcript with error
+            await self.transcript_storage.end_transcript(conversation.id)
+            await self.transcript_storage.update_metadata(
+                conversation.id,
+                {"error": str(error), "error_type": type(error).__name__}
+            )
             
             try:
                 await websocket.close(code=1011, reason=str(error))
@@ -232,6 +272,7 @@ class WebSocketConnectionHandler:
                 f"connection:{connection_id}:error",
                 connection_id=connection_id,
                 session_id=conversation.participant.session_id,
+                correlation_token=conn_info.get("correlation_token"),
                 error_type=type(error).__name__,
                 error_message=str(error)
             )
@@ -241,6 +282,9 @@ class WebSocketConnectionHandler:
         if connection_id in self._active_connections:
             conn_info = self._active_connections[connection_id]
             conversation = conn_info["conversation"]
+            
+            # Ensure transcript is ended
+            await self.transcript_storage.end_transcript(conversation.id)
             
             await self.conversation_manager.end_conversation(conversation.id)
             

@@ -15,6 +15,7 @@ import logging
 import sys
 from pathlib import Path
 from contextlib import asynccontextmanager
+import asyncio
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -22,6 +23,7 @@ from src.config.settings import get_settings
 from src.handlers.websocket_handler import get_websocket_handler
 from src.handlers.events_websocket_handler import get_events_websocket_handler
 from src.services.conversation_manager import get_conversation_manager
+from src.services.transcript_storage import get_transcript_storage
 from src.events import get_event_bus, get_event_store
 
 settings = get_settings()
@@ -30,6 +32,17 @@ logging.basicConfig(
     format=settings.log_format
 )
 logger = logging.getLogger(__name__)
+
+
+async def periodic_transcript_cleanup():
+    """Run transcript cleanup every hour"""
+    transcript_storage = get_transcript_storage()
+    while True:
+        await asyncio.sleep(3600)  # 1 hour
+        try:
+            await transcript_storage.cleanup_old_transcripts(hours=24)
+        except Exception as e:
+            logger.error(f"Error during transcript cleanup: {e}")
 
 
 @asynccontextmanager
@@ -51,9 +64,20 @@ async def lifespan(app: FastAPI):
         api_keys_configured=api_keys_status
     )
     
+    # Start background tasks
+    cleanup_task = asyncio.create_task(periodic_transcript_cleanup())
+    
     yield
     
     logger.info("Shutting down application...")
+    
+    # Cancel background tasks
+    cleanup_task.cancel()
+    try:
+        await cleanup_task
+    except asyncio.CancelledError:
+        pass
+    
     await event_bus.emit("global:system:shutdown")
     
     websocket_handler = get_websocket_handler()
@@ -87,6 +111,7 @@ app.add_middleware(
 websocket_handler = get_websocket_handler()
 events_handler = get_events_websocket_handler()
 conversation_manager = get_conversation_manager()
+transcript_storage = get_transcript_storage()
 event_bus = get_event_bus()
 event_store = get_event_store()
 
@@ -110,6 +135,11 @@ async def root():
             "events_api": {
                 "stats": "/api/events/stats",
                 "history": "/api/events/history"
+            },
+            "transcripts": {
+                "by_correlation": "/api/transcripts/correlation/{correlation_token}",
+                "by_session": "/api/transcripts/session/{session_id}",
+                "by_conversation": "/api/transcripts/conversation/{conversation_id}"
             }
         }
     }
@@ -132,6 +162,7 @@ async def health_check():
             "store_stats": event_store.get_stats(),
             "websocket_clients": events_handler.get_stats()
         },
+        "transcript_storage": transcript_storage.get_stats(),
         "settings": {
             "debug": settings.debug,
             "metrics_enabled": settings.enable_metrics
@@ -143,6 +174,7 @@ async def health_check():
 async def websocket_conversation(
     websocket: WebSocket,
     session_id: Optional[str] = Query(None, description="Optional session ID"),
+    correlation_token: Optional[str] = Query(None, description="Correlation token for transcript tracking"),
     stt_provider: Optional[str] = Query(None, description="Speech-to-text provider"),
     stt_model: Optional[str] = Query(None, description="STT model"),
     llm_provider: Optional[str] = Query(None, description="LLM provider"),
@@ -169,6 +201,47 @@ async def websocket_events(
 ):
     """WebSocket endpoint for real-time events."""
     await events_handler.handle_connection(websocket, session_id)
+
+
+# Transcript API endpoints
+@app.get("/api/transcripts/correlation/{correlation_token}")
+async def get_transcript_by_correlation(correlation_token: str):
+    """Retrieve transcript by correlation token"""
+    transcript = await transcript_storage.get_transcript_by_correlation(correlation_token)
+    
+    if not transcript:
+        raise HTTPException(status_code=404, detail="Transcript not found")
+    
+    return transcript.to_dict()
+
+
+@app.get("/api/transcripts/session/{session_id}")
+async def get_transcript_by_session(session_id: str):
+    """Retrieve transcript by session ID"""
+    transcript = await transcript_storage.get_transcript_by_session(session_id)
+    
+    if not transcript:
+        raise HTTPException(status_code=404, detail="Transcript not found")
+    
+    return transcript.to_dict()
+
+
+@app.get("/api/transcripts/conversation/{conversation_id}")
+async def get_transcript_by_conversation(conversation_id: str):
+    """Retrieve transcript by conversation ID"""
+    transcript = await transcript_storage.get_transcript_by_conversation(conversation_id)
+    
+    if not transcript:
+        raise HTTPException(status_code=404, detail="Transcript not found")
+    
+    return transcript.to_dict()
+
+
+@app.post("/api/transcripts/cleanup")
+async def cleanup_old_transcripts(hours: int = Query(24, description="Remove transcripts older than N hours")):
+    """Clean up transcripts older than specified hours"""
+    await transcript_storage.cleanup_old_transcripts(hours)
+    return {"message": f"Cleaned up transcripts older than {hours} hours"}
 
 
 @app.get("/api/conversations")
@@ -253,6 +326,12 @@ async def get_conversation_transcript(
     if session_id and conversation.participant.session_id != session_id:
         raise HTTPException(status_code=403, detail="Access denied")
     
+    # Try to get from transcript storage first
+    stored_transcript = await transcript_storage.get_transcript_by_conversation(conversation_id)
+    if stored_transcript:
+        return stored_transcript.to_dict()
+    
+    # Fallback to conversation's built-in transcript
     return {
         "conversation_id": conversation_id,
         "participant_id": conversation.participant.id,
@@ -285,6 +364,7 @@ async def get_statistics():
             "average_duration_ms": total_duration_ms / len(all_conversations) if all_conversations else 0,
             "average_turns_per_conversation": total_turns / len(all_conversations) if all_conversations else 0
         },
+        "transcripts": transcript_storage.get_stats(),
         "events": {
             "bus": event_bus.get_stats(),
             "store": event_store.get_stats(),

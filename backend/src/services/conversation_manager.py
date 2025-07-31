@@ -4,6 +4,7 @@ Conversation management service for voice assistant.
 import asyncio
 from typing import Dict, Optional, Callable, Any, List
 from datetime import datetime, timedelta
+from src.services.transcript_storage import get_transcript_storage
 import logging
 
 from src.domains.conversation import (
@@ -244,7 +245,13 @@ class ConversationManager:
                 text=text,
                 confidence=confidence
             )
-            
+            transcript_storage = get_transcript_storage()
+            await transcript_storage.add_message(
+                conversation_id=conversation_id,
+                speaker=speaker,
+                message=text,
+                audio_duration=turn.audio_duration_ms / 1000 if turn.audio_duration_ms else None
+            )
             await self._event_bus.emit(
                 f"conversation:{conversation_id}:turn:completed",
                 conversation_id=conversation_id,

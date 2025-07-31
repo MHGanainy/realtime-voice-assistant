@@ -10,6 +10,46 @@ import { STT_PROVIDERS, DEFAULT_STT_PROVIDER, getSTTConfig, getSTTProviderOption
 import { encodeAudioFrame, decodeFrame, playAudioQueue, setupAudioWorklet } from './services/audioService';
 import { connectEventWebSocket, handleEventMessage as handleEventMsg, createConversationWebSocket, requestEventStats } from './services/websocketService';
 
+// Transcript API functions
+const fetchTranscript = async (correlationToken) => {
+  try {
+    const response = await fetch(
+      `${CONFIG.API_BASE_URL}/api/transcripts/correlation/${correlationToken}`
+    );
+    if (!response.ok) throw new Error('Failed to fetch transcript');
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching transcript:', error);
+    return null;
+  }
+};
+
+const fetchTranscriptBySession = async (sessionId) => {
+  try {
+    const response = await fetch(
+      `${CONFIG.API_BASE_URL}/api/transcripts/session/${sessionId}`
+    );
+    if (!response.ok) throw new Error('Failed to fetch transcript');
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching transcript:', error);
+    return null;
+  }
+};
+
+const fetchTranscriptByConversation = async (conversationId) => {
+  try {
+    const response = await fetch(
+      `${CONFIG.API_BASE_URL}/api/transcripts/conversation/${conversationId}`
+    );
+    if (!response.ok) throw new Error('Failed to fetch transcript');
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching transcript:', error);
+    return null;
+  }
+};
+
 function App() {
   const defaultTTS = getTTSConfig(DEFAULT_TTS_PROVIDER);
   const defaultLLM = getLLMConfig(DEFAULT_LLM_PROVIDER);
@@ -49,7 +89,12 @@ function App() {
       stt: { ttfb: null, processingTime: null },
       llm: { ttfb: null, processingTime: null },
       tts: { ttfb: null, processingTime: null }
-    }
+    },
+    // Transcript storage state
+    correlationToken: null,
+    transcript: null,
+    showTranscript: false,
+    conversationId: null
   });
 
   const refs = useRef({
@@ -82,7 +127,7 @@ function App() {
     ttsProviderKey, ttsProvider, ttsModel, ttsVoice,
     llmProviderKey, llmProvider, llmModel,
     sttProviderKey, sttProvider, sttModel,
-    metrics
+    metrics, correlationToken, transcript, showTranscript, conversationId
   } = state;
 
   const addEventLog = useCallback((eventName, eventData, options = {}) => {
@@ -129,6 +174,11 @@ function App() {
           }));
         }
       }
+    }
+    
+    // Capture conversation ID from events
+    if (eventName && eventName.includes('conversation:') && eventData.conversation_id) {
+      setState(prev => ({ ...prev, conversationId: eventData.conversation_id }));
     }
   }, []);
 
@@ -254,10 +304,16 @@ function App() {
       refs.current.logBuffer = []; // Clear log buffer
 
       const sessionId = crypto.randomUUID();
+      const correlationToken = `transcript-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
       updateState({ 
         sessionId, 
+        correlationToken,
         status: 'Requesting microphone access...', 
         eventLogs: [],
+        transcript: null,
+        showTranscript: false,
+        conversationId: null,
         metrics: {
           stt: { ttfb: null, processingTime: null },
           llm: { ttfb: null, processingTime: null },
@@ -289,7 +345,7 @@ function App() {
 
       updateState({ status: 'Connecting to server...' });
       
-      // Create conversation WebSocket
+      // Create conversation WebSocket with correlation token
       const ws = createConversationWebSocket(
         sessionId,
         { 
@@ -302,7 +358,8 @@ function App() {
           llmProvider: state.llmProvider,
           llmModel: state.llmModel,
           sttProvider: state.sttProvider,
-          sttModel: state.sttModel
+          sttModel: state.sttModel,
+          correlationToken: correlationToken  // Add correlation token
         },
         refs,
         updateState,
@@ -882,6 +939,213 @@ function App() {
             </div>
           )}
 
+          {/* Transcript Storage Panel */}
+          {correlationToken && (
+            <div className="transcript-panel" style={{
+              marginTop: '20px',
+              padding: '15px',
+              background: '#2a2a2a',
+              border: '1px solid #3a3a3a',
+              borderRadius: '8px'
+            }}>
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                marginBottom: '10px'
+              }}>
+                <h3 style={{ margin: 0, fontSize: '1rem', color: '#e0e0e0' }}>
+                  📝 Transcript Storage
+                </h3>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    onClick={async () => {
+                      const transcript = await fetchTranscript(correlationToken);
+                      updateState({ transcript, showTranscript: true });
+                    }}
+                    style={{
+                      padding: '6px 12px',
+                      background: '#3a3a3a',
+                      border: '1px solid #4a4a4a',
+                      borderRadius: '4px',
+                      color: '#e0e0e0',
+                      cursor: 'pointer',
+                      fontSize: '0.875rem'
+                    }}
+                  >
+                    {isConnected ? 'Fetch Live' : 'Fetch Saved'}
+                  </button>
+                  {showTranscript && (
+                    <button
+                      onClick={() => updateState({ showTranscript: false })}
+                      style={{
+                        padding: '6px 12px',
+                        background: '#3a3a3a',
+                        border: '1px solid #4a4a4a',
+                        borderRadius: '4px',
+                        color: '#e0e0e0',
+                        cursor: 'pointer',
+                        fontSize: '0.875rem'
+                      }}
+                    >
+                      Hide
+                    </button>
+                  )}
+                </div>
+              </div>
+              
+              <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginBottom: '10px' }}>
+                Correlation Token: <code style={{ 
+                  background: '#1a1a1a', 
+                  padding: '2px 6px', 
+                  borderRadius: '3px',
+                  fontSize: '0.7rem'
+                }}>{correlationToken}</code>
+              </div>
+
+              {showTranscript && transcript && (
+                <div style={{
+                  marginTop: '15px',
+                  padding: '10px',
+                  background: '#1a1a1a',
+                  borderRadius: '6px',
+                  border: '1px solid #3a3a3a',
+                  maxHeight: '300px',
+                  overflowY: 'auto'
+                }}>
+                  <div style={{ marginBottom: '10px', fontSize: '0.8rem', color: '#9ca3af' }}>
+                    <div>Started: {new Date(transcript.started_at).toLocaleString()}</div>
+                    {transcript.ended_at && (
+                      <div>Ended: {new Date(transcript.ended_at).toLocaleString()}</div>
+                    )}
+                    <div>Messages: {transcript.total_messages}</div>
+                    {transcript.duration_seconds && (
+                      <div>Duration: {Math.round(transcript.duration_seconds)}s</div>
+                    )}
+                  </div>
+                  
+                  <div style={{ borderTop: '1px solid #3a3a3a', paddingTop: '10px' }}>
+                    {transcript.messages?.map((msg, idx) => (
+                      <div key={idx} style={{
+                        marginBottom: '8px',
+                        padding: '8px',
+                        background: msg.speaker === 'participant' ? '#1e293b' : '#1e1e1e',
+                        borderRadius: '4px',
+                        fontSize: '0.875rem'
+                      }}>
+                        <div style={{ 
+                          fontWeight: 'bold', 
+                          color: msg.speaker === 'participant' ? '#60a5fa' : '#34d399',
+                          marginBottom: '4px'
+                        }}>
+                          {msg.speaker === 'participant' ? '👤 User' : '🤖 Assistant'}
+                        </div>
+                        <div style={{ color: '#e0e0e0' }}>{msg.message}</div>
+                        <div style={{ 
+                          fontSize: '0.7rem', 
+                          color: '#666', 
+                          marginTop: '4px' 
+                        }}>
+                          {new Date(msg.timestamp).toLocaleTimeString()}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Transcript API Testing Panel */}
+          {process.env.NODE_ENV === 'development' && (sessionId || correlationToken || conversationId) && (
+            <div style={{
+              marginTop: '20px',
+              padding: '15px',
+              background: '#2a2a2a',
+              border: '1px solid #3a3a3a',
+              borderRadius: '8px'
+            }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#e0e0e0' }}>
+                🔧 Transcript API Testing
+              </h4>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button
+                  onClick={async () => {
+                    if (correlationToken) {
+                      const result = await fetchTranscript(correlationToken);
+                      console.log('Fetch by correlation:', result);
+                      alert(result ? 'Success! Check console' : 'Failed to fetch');
+                    }
+                  }}
+                  disabled={!correlationToken}
+                  style={{
+                    padding: '6px 12px',
+                    background: '#3a3a3a',
+                    border: '1px solid #4a4a4a',
+                    borderRadius: '4px',
+                    color: '#e0e0e0',
+                    cursor: correlationToken ? 'pointer' : 'not-allowed',
+                    opacity: correlationToken ? 1 : 0.5,
+                    fontSize: '0.8rem'
+                  }}
+                >
+                  Test by Correlation
+                </button>
+                
+                <button
+                  onClick={async () => {
+                    if (sessionId) {
+                      const result = await fetchTranscriptBySession(sessionId);
+                      console.log('Fetch by session:', result);
+                      alert(result ? 'Success! Check console' : 'Failed to fetch');
+                    }
+                  }}
+                  disabled={!sessionId}
+                  style={{
+                    padding: '6px 12px',
+                    background: '#3a3a3a',
+                    border: '1px solid #4a4a4a',
+                    borderRadius: '4px',
+                    color: '#e0e0e0',
+                    cursor: sessionId ? 'pointer' : 'not-allowed',
+                    opacity: sessionId ? 1 : 0.5,
+                    fontSize: '0.8rem'
+                  }}
+                >
+                  Test by Session
+                </button>
+
+                <button
+                  onClick={async () => {
+                    if (conversationId) {
+                      const result = await fetchTranscriptByConversation(conversationId);
+                      console.log('Fetch by conversation:', result);
+                      alert(result ? 'Success! Check console' : 'Failed to fetch');
+                    }
+                  }}
+                  disabled={!conversationId}
+                  style={{
+                    padding: '6px 12px',
+                    background: '#3a3a3a',
+                    border: '1px solid #4a4a4a',
+                    borderRadius: '4px',
+                    color: '#e0e0e0',
+                    cursor: conversationId ? 'pointer' : 'not-allowed',
+                    opacity: conversationId ? 1 : 0.5,
+                    fontSize: '0.8rem'
+                  }}
+                >
+                  Test by Conversation ID
+                </button>
+              </div>
+              {conversationId && (
+                <div style={{ marginTop: '10px', fontSize: '0.7rem', color: '#666' }}>
+                  Conversation ID: {conversationId}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="tips" style={{ marginTop: '20px' }}>
             <h3>💡 Tips:</h3>
             <ul>
@@ -890,6 +1154,7 @@ function App() {
               <li>Check the Event Log panel to see real-time events</li>
               <li>Enable interruptions to interrupt the assistant mid-response</li>
               <li>Disable processors for lower latency (no tracking)</li>
+              <li>Transcript is automatically saved with correlation token</li>
             </ul>
           </div>
 
