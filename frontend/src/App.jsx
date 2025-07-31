@@ -92,6 +92,8 @@ function App() {
     },
     // Transcript storage state
     correlationToken: null,
+    customCorrelationToken: '', // User input for custom token
+    useCustomToken: false, // Toggle for custom vs auto-generated
     transcript: null,
     showTranscript: false,
     conversationId: null
@@ -127,7 +129,7 @@ function App() {
     ttsProviderKey, ttsProvider, ttsModel, ttsVoice,
     llmProviderKey, llmProvider, llmModel,
     sttProviderKey, sttProvider, sttModel,
-    metrics, correlationToken, transcript, showTranscript, conversationId
+    metrics, correlationToken, customCorrelationToken, useCustomToken, transcript, showTranscript, conversationId
   } = state;
 
   const addEventLog = useCallback((eventName, eventData, options = {}) => {
@@ -304,11 +306,18 @@ function App() {
       refs.current.logBuffer = []; // Clear log buffer
 
       const sessionId = crypto.randomUUID();
-      const correlationToken = `transcript-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Use custom token if enabled and provided, otherwise generate one
+      let finalCorrelationToken;
+      if (state.useCustomToken && state.customCorrelationToken.trim()) {
+        finalCorrelationToken = state.customCorrelationToken.trim();
+      } else {
+        finalCorrelationToken = `transcript-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      }
       
       updateState({ 
         sessionId, 
-        correlationToken,
+        correlationToken: finalCorrelationToken,
         status: 'Requesting microphone access...', 
         eventLogs: [],
         transcript: null,
@@ -359,7 +368,7 @@ function App() {
           llmModel: state.llmModel,
           sttProvider: state.sttProvider,
           sttModel: state.sttModel,
-          correlationToken: correlationToken  // Add correlation token
+          correlationToken: finalCorrelationToken  // Use the final token
         },
         refs,
         updateState,
@@ -819,6 +828,75 @@ function App() {
               </div>
             </div>
 
+            {/* Correlation Token Input */}
+            <div style={{ 
+              marginBottom: '15px',
+              padding: '15px',
+              background: '#2a2a2a',
+              border: '1px solid #3a3a3a',
+              borderRadius: '8px'
+            }}>
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '10px', 
+                  color: '#e0e0e0',
+                  fontSize: '0.95rem',
+                  cursor: isRecording ? 'not-allowed' : 'pointer',
+                  opacity: isRecording ? 0.6 : 1
+                }}>
+                  <input 
+                    type="checkbox" 
+                    checked={useCustomToken} 
+                    onChange={(e) => updateState({ useCustomToken: e.target.checked })}
+                    disabled={isRecording}
+                    style={{ cursor: isRecording ? 'not-allowed' : 'pointer' }}
+                  />
+                  Use Custom Correlation Token
+                </label>
+              </div>
+              
+              {useCustomToken && (
+                <div>
+                  <input
+                    type="text"
+                    value={customCorrelationToken}
+                    onChange={(e) => updateState({ customCorrelationToken: e.target.value })}
+                    disabled={isRecording}
+                    placeholder="Enter custom correlation token..."
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      background: '#1a1a1a',
+                      border: '1px solid #3a3a3a',
+                      borderRadius: '4px',
+                      color: '#e0e0e0',
+                      fontSize: '0.875rem',
+                      fontFamily: 'Monaco, Menlo, monospace',
+                      opacity: isRecording ? 0.6 : 1
+                    }}
+                  />
+                  <div style={{
+                    marginTop: '8px',
+                    fontSize: '0.75rem',
+                    color: '#9ca3af'
+                  }}>
+                    This token will be used to retrieve the transcript later
+                  </div>
+                </div>
+              )}
+              
+              {!useCustomToken && (
+                <div style={{
+                  fontSize: '0.75rem',
+                  color: '#666'
+                }}>
+                  A unique token will be auto-generated for each conversation
+                </div>
+              )}
+            </div>
+
             <button 
               className={`main-button ${isRecording ? 'stop' : 'start'}`}
               onClick={isRecording ? stopConversation : startConversation}
@@ -995,11 +1073,16 @@ function App() {
               </div>
               
               <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginBottom: '10px' }}>
-                Correlation Token: <code style={{ 
+                <div style={{ marginBottom: '4px' }}>
+                  Correlation Token ({useCustomToken ? 'Custom' : 'Auto-generated'}):
+                </div>
+                <code style={{ 
                   background: '#1a1a1a', 
-                  padding: '2px 6px', 
+                  padding: '4px 8px', 
                   borderRadius: '3px',
-                  fontSize: '0.7rem'
+                  fontSize: '0.7rem',
+                  display: 'inline-block',
+                  wordBreak: 'break-all'
                 }}>{correlationToken}</code>
               </div>
 
@@ -1142,6 +1225,84 @@ function App() {
                 <div style={{ marginTop: '10px', fontSize: '0.7rem', color: '#666' }}>
                   Conversation ID: {conversationId}
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* Transcript Retrieval Panel - shown when not recording */}
+          {!isRecording && !isConnected && (
+            <div style={{
+              marginTop: '20px',
+              padding: '15px',
+              background: '#2a2a2a',
+              border: '1px solid #3a3a3a',
+              borderRadius: '8px'
+            }}>
+              <h3 style={{ margin: '0 0 15px 0', fontSize: '1rem', color: '#e0e0e0' }}>
+                📥 Retrieve Saved Transcript
+              </h3>
+              <div style={{ marginBottom: '10px' }}>
+                <input
+                  type="text"
+                  placeholder="Enter correlation token to retrieve transcript..."
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && e.target.value.trim()) {
+                      fetchTranscript(e.target.value.trim()).then(transcript => {
+                        if (transcript) {
+                          updateState({ 
+                            transcript, 
+                            showTranscript: true,
+                            correlationToken: e.target.value.trim()
+                          });
+                        } else {
+                          alert('No transcript found for this token');
+                        }
+                      });
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    background: '#1a1a1a',
+                    border: '1px solid #3a3a3a',
+                    borderRadius: '4px',
+                    color: '#e0e0e0',
+                    fontSize: '0.875rem',
+                    fontFamily: 'Monaco, Menlo, monospace'
+                  }}
+                />
+                <div style={{
+                  marginTop: '8px',
+                  fontSize: '0.75rem',
+                  color: '#666'
+                }}>
+                  Press Enter to retrieve transcript
+                </div>
+              </div>
+              
+              {/* Show previously used correlation token if available */}
+              {correlationToken && !showTranscript && (
+                <button
+                  onClick={async () => {
+                    const transcript = await fetchTranscript(correlationToken);
+                    if (transcript) {
+                      updateState({ transcript, showTranscript: true });
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    background: '#3a3a3a',
+                    border: '1px solid #4a4a4a',
+                    borderRadius: '6px',
+                    color: '#e0e0e0',
+                    cursor: 'pointer',
+                    fontSize: '0.875rem',
+                    marginTop: '10px'
+                  }}
+                >
+                  📄 Retrieve Last Transcript ({correlationToken.slice(0, 20)}...)
+                </button>
               )}
             </div>
           )}
