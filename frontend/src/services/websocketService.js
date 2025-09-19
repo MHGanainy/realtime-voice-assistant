@@ -125,9 +125,22 @@ export const createConversationWebSocket = (sessionId, params, refs, updateState
     enable_processors: params.enableProcessors.toString()
   });
   
-  // Add correlation token if provided
+  // Add JWT token if provided (authentication)
+  if (params.jwtToken) {
+    queryParams.append('token', params.jwtToken);
+  }
+  
+  // Add correlation token if provided (transcript tracking)
   if (params.correlationToken) {
     queryParams.append('correlation_token', params.correlationToken);
+  }
+  
+  // Log warning if missing tokens
+  if (!params.jwtToken || !params.correlationToken) {
+    console.warn('Missing required tokens:', {
+      hasJWT: !!params.jwtToken,
+      hasCorrelation: !!params.correlationToken
+    });
   }
   
   const ws = new WebSocket(`${CONFIG.WS_BASE_URL}/ws/conversation?${queryParams}`);
@@ -145,6 +158,7 @@ export const createConversationWebSocket = (sessionId, params, refs, updateState
       processors_enabled: params.enableProcessors,
       interruptions_enabled: params.enableInterruptions ?? true,
       correlation_token: params.correlationToken,
+      has_jwt_token: !!params.jwtToken,
       stt_provider: params.sttProvider,
       stt_model: params.sttModel,
       llm_provider: params.llmProvider,

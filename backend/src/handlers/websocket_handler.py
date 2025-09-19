@@ -8,6 +8,7 @@ from datetime import datetime
 import logging
 import uuid
 import aiohttp
+import os
 
 from src.domains.conversation import Participant, ConversationConfig
 from src.services.conversation_manager import get_conversation_manager
@@ -21,6 +22,15 @@ from pipecat.transports.network.fastapi_websocket import (
 )
 from pipecat.audio.vad.silero import SileroVADAnalyzer, VADParams
 from pipecat.serializers.protobuf import ProtobufFrameSerializer
+
+# ===== AUTH IMPORTS - REMOVE FOR NO AUTH =====
+try:
+    from src.auth.token_validator import token_validator
+    print("✓ Token validator imported successfully")
+except Exception as e:
+    print(f"✗ Failed to import token validator: {e}")
+    token_validator = None
+# ===== END AUTH IMPORTS =====
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +46,15 @@ class WebSocketConnectionHandler:
         self._event_bus = get_event_bus()
         self._active_connections: Dict[str, Dict[str, Any]] = {}
         self._aiohttp_sessions: Dict[str, aiohttp.ClientSession] = {}
+        
+        # ===== DEV MODE CONFIGURATION =====
+        # Set to True to bypass token validation
+        # IMPORTANT: Must be False in production!
+        self.AUTH_DEV_MODE = os.getenv('AUTH_DEV_MODE', 'false').lower() == 'true'
+        if self.AUTH_DEV_MODE:
+            logger.warning("⚠️ AUTH DEV MODE ENABLED - Token validation bypassed!")
+            logger.warning("⚠️ This should ONLY be used in development!")
+        # ===== END DEV MODE CONFIGURATION =====
     
     async def handle_connection(
         self,
@@ -50,9 +69,91 @@ class WebSocketConnectionHandler:
         try:
             await websocket.accept()
             logger.info(f"WebSocket connection established: {connection_id}")
+            logger.info(f"Query params received: {dict(websocket.query_params)}")
             
-            # Extract correlation token from query params
-            correlation_token = websocket.query_params.get("correlation_token", None)
+            # ===== AUTHENTICATION START - REMOVE FOR NO AUTH =====
+            correlation_token = None
+            authenticated_data = {}
+            
+            if not self.AUTH_DEV_MODE:
+                # PRODUCTION MODE: Require both tokens
+                
+                # 1. Check for JWT token (authentication)
+                jwt_token = websocket.query_params.get("token")
+                if not jwt_token:
+                    logger.warning(f"No JWT token provided for connection {connection_id}")
+                    await websocket.send_json({
+                        "type": "error",
+                        "error": "Authentication required. Please provide a valid JWT token."
+                    })
+                    await websocket.close(code=1008, reason="No authentication token")
+                    return
+                
+                # Validate JWT token
+                if token_validator:
+                    auth_data = token_validator.validate_token(jwt_token)
+                    if not auth_data:
+                        logger.warning(f"Invalid JWT token for connection {connection_id}")
+                        await websocket.send_json({
+                            "type": "error",
+                            "error": "Invalid or expired authentication token"
+                        })
+                        await websocket.close(code=1008, reason="Invalid token")
+                        return
+                else:
+                    logger.error("Token validator not available")
+                    await websocket.send_json({
+                        "type": "error",
+                        "error": "Authentication system unavailable"
+                    })
+                    await websocket.close(code=1011, reason="Auth system error")
+                    return
+                
+                # 2. Check for correlation token (transcript tracking)
+                correlation_token = websocket.query_params.get("correlation_token")
+                if not correlation_token:
+                    logger.warning(f"No correlation token provided for connection {connection_id}")
+                    await websocket.send_json({
+                        "type": "error",
+                        "error": "Correlation token required for transcript tracking"
+                    })
+                    await websocket.close(code=1008, reason="No correlation token")
+                    return
+                
+                # Both tokens valid - store auth data
+                authenticated_data = {
+                    'attempt_id': auth_data.get('attempt_id'),
+                    'student_id': auth_data.get('student_id'),
+                    'authenticated': True,
+                    'auth_method': 'jwt',
+                    'jwt_correlation': auth_data.get('correlation_token'),
+                    'actual_correlation': correlation_token
+                }
+                
+                # Optional: Log if correlation tokens don't match
+                jwt_correlation = auth_data.get('correlation_token')
+                if jwt_correlation and jwt_correlation != correlation_token:
+                    logger.warning(f"Correlation token mismatch: JWT={jwt_correlation}, Query={correlation_token}")
+                
+                # session_id = f"session_{auth_data.get('attempt_id', connection_id)}"
+                logger.info(f"Authenticated connection: {session_id} with correlation: {correlation_token}")
+                
+            else:
+                # DEV MODE: Accept with minimal requirements
+                correlation_token = websocket.query_params.get("correlation_token")
+                if not correlation_token:
+                    correlation_token = f"dev_token_{datetime.utcnow().timestamp()}"
+                    logger.info(f"[DEV MODE] Generated correlation token: {correlation_token}")
+                
+                jwt_token = websocket.query_params.get("token")
+                authenticated_data = {
+                    'authenticated': True,
+                    'auth_method': 'dev_mode',
+                    'dev_mode': True,
+                    'dev_jwt': jwt_token if jwt_token else None
+                }
+                logger.info(f"[DEV MODE] Accepting connection: {connection_id} with correlation: {correlation_token}")
+            # ===== AUTHENTICATION END =====
             
             await self._event_bus.emit(
                 f"connection:{connection_id}:established",
@@ -60,7 +161,8 @@ class WebSocketConnectionHandler:
                 session_id=session_id,
                 correlation_token=correlation_token,
                 client_ip=websocket.client.host if websocket.client else None,
-                user_agent=websocket.headers.get("user-agent")
+                user_agent=websocket.headers.get("user-agent"),
+                **authenticated_data
             )
             
             participant = Participant(
@@ -70,13 +172,13 @@ class WebSocketConnectionHandler:
                 ip_address=websocket.client.host if websocket.client else None,
                 metadata={
                     "session_id": session_id,
-                    "correlation_token": correlation_token
+                    "correlation_token": correlation_token,
+                    **authenticated_data
                 }
             )
             
             config = self._build_config_from_params(websocket)
             
-            # Get enable_processors parameter from query params
             enable_processors = websocket.query_params.get("enable_processors", "true").lower() == "true"
             
             conversation = await self.conversation_manager.create_conversation(
@@ -84,35 +186,33 @@ class WebSocketConnectionHandler:
                 config=config
             )
             
-            # Create transcript for this conversation
             transcript = await self.transcript_storage.create_transcript(
                 session_id=session_id,
                 conversation_id=conversation.id,
                 correlation_token=correlation_token
             )
             
-            # Store correlation token in transcript metadata
-            if correlation_token:
-                await self.transcript_storage.update_metadata(
-                    conversation_id=conversation.id,
-                    metadata={
-                        "simulation_attempt_id": correlation_token,
-                        "connected_at": datetime.utcnow().isoformat()
-                    }
-                )
+            metadata_update = {
+                "simulation_attempt_id": correlation_token,
+                "connected_at": datetime.utcnow().isoformat(),
+                **authenticated_data
+            }
+            await self.transcript_storage.update_metadata(
+                conversation_id=conversation.id,
+                metadata=metadata_update
+            )
             
             aiohttp_session = aiohttp.ClientSession()
             self._aiohttp_sessions[connection_id] = aiohttp_session
             
             transport = self._create_transport(websocket, config)
             
-            # Pass enable_processors to pipeline factory
             pipeline, output_sample_rate = await self.pipeline_factory.create_pipeline(
                 config=config,
                 transport=transport,
                 conversation_id=conversation.id,
                 aiohttp_session=aiohttp_session,
-                enable_processors=enable_processors  # Pass the parameter
+                enable_processors=enable_processors
             )
             
             self._active_connections[connection_id] = {
@@ -124,7 +224,8 @@ class WebSocketConnectionHandler:
                 "aiohttp_session": aiohttp_session,
                 "connected_at": datetime.utcnow(),
                 "processors_enabled": enable_processors,
-                "correlation_token": correlation_token
+                "correlation_token": correlation_token,
+                **authenticated_data
             }
             
             success = await self.conversation_manager.start_conversation(
@@ -146,7 +247,8 @@ class WebSocketConnectionHandler:
             logger.info(
                 f"Starting pipeline for conversation {conversation.id} "
                 f"(processors {'enabled' if enable_processors else 'disabled'}, "
-                f"correlation: {correlation_token or 'none'})"
+                f"correlation: {correlation_token}, "
+                f"auth: {authenticated_data.get('auth_method', 'none')})"
             )
             
             await self.conversation_manager.run_pipeline_for_conversation(
@@ -228,9 +330,7 @@ class WebSocketConnectionHandler:
         if conn_info:
             conversation = conn_info["conversation"]
             
-            # End the transcript
             await self.transcript_storage.end_transcript(conversation.id)
-            
             await self.conversation_manager.end_conversation(conversation.id)
             
             await self._event_bus.emit(
@@ -251,7 +351,6 @@ class WebSocketConnectionHandler:
             websocket = conn_info["websocket"]
             conversation = conn_info["conversation"]
             
-            # End the transcript with error
             await self.transcript_storage.end_transcript(conversation.id)
             await self.transcript_storage.update_metadata(
                 conversation.id,
@@ -283,9 +382,7 @@ class WebSocketConnectionHandler:
             conn_info = self._active_connections[connection_id]
             conversation = conn_info["conversation"]
             
-            # Ensure transcript is ended
             await self.transcript_storage.end_transcript(conversation.id)
-            
             await self.conversation_manager.end_conversation(conversation.id)
             
             if connection_id in self._aiohttp_sessions:

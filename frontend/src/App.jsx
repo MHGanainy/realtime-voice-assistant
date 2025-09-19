@@ -90,10 +90,14 @@ function App() {
       llm: { ttfb: null, processingTime: null },
       tts: { ttfb: null, processingTime: null }
     },
-    // Transcript storage state
+    // Token management - BOTH JWT and Correlation tokens
     correlationToken: null,
-    customCorrelationToken: '', // User input for custom token
-    useCustomToken: false, // Toggle for custom vs auto-generated
+    customCorrelationToken: '',
+    useCustomToken: false,
+    jwtToken: null,
+    customJwtToken: '',
+    useCustomJwtToken: false,
+    // Transcript state
     transcript: null,
     showTranscript: false,
     conversationId: null
@@ -120,7 +124,7 @@ function App() {
 
   const updateState = (updates) => setState(prev => ({ ...prev, ...updates }));
 
-  // Destructure state early to use in effects
+  // Destructure state - INCLUDING JWT token fields
   const { 
     isRecording, isConnected, isAssistantSpeaking, sessionId, 
     status, conversationHistory, devices, selectedDevice, isMicMuted,
@@ -129,7 +133,10 @@ function App() {
     ttsProviderKey, ttsProvider, ttsModel, ttsVoice,
     llmProviderKey, llmProvider, llmModel,
     sttProviderKey, sttProvider, sttModel,
-    metrics, correlationToken, customCorrelationToken, useCustomToken, transcript, showTranscript, conversationId
+    metrics, 
+    correlationToken, customCorrelationToken, useCustomToken,
+    jwtToken, customJwtToken, useCustomJwtToken,
+    transcript, showTranscript, conversationId
   } = state;
 
   const addEventLog = useCallback((eventName, eventData, options = {}) => {
@@ -144,13 +151,29 @@ function App() {
     // Add to buffer instead of directly updating state
     refs.current.logBuffer.push(logEntry);
     
+    // DEBUG: Log every event to see what's coming through
+    if (eventName) {
+      console.log(`[EVENT] ${eventName}`, eventData);
+    }
+    
     // Check if this is a metrics event and update metrics state immediately
     if (eventName && eventName.includes(':metrics:')) {
+      console.log('🎯 METRICS EVENT FOUND:', {
+        name: eventName,
+        data: eventData,
+        hasService: !!eventData.service,
+        service: eventData.service
+      });
+      
       // Get service type directly from the service field
       const serviceType = eventData.service?.toLowerCase();
+      
       // Only proceed if we have a valid service type
       if (serviceType && ['stt', 'llm', 'tts'].includes(serviceType)) {
+        console.log(`✅ Valid service type: ${serviceType}`);
+        
         if (eventName.includes(':ttfb') && eventData.ttfb_ms !== undefined) {
+          console.log(`📊 Updating ${serviceType} TTFB: ${eventData.ttfb_ms}ms`);
           // Update state immediately for metrics
           setState(prev => ({
             ...prev,
@@ -163,6 +186,7 @@ function App() {
             }
           }));
         } else if (eventName.includes(':processing_time') && eventData.processing_time_ms !== undefined) {
+          console.log(`📊 Updating ${serviceType} processing time: ${eventData.processing_time_ms}ms`);
           // Update state immediately for metrics
           setState(prev => ({
             ...prev,
@@ -174,9 +198,18 @@ function App() {
               }
             }
           }));
+        } else {
+          console.log('❌ Metrics event missing required fields:', {
+            hasTTFB: eventName.includes(':ttfb'),
+            ttfb_ms: eventData.ttfb_ms,
+            hasProcessing: eventName.includes(':processing_time'),
+            processing_time_ms: eventData.processing_time_ms
+          });
         }
+      } else {
+        console.log('❌ Invalid or missing service type:', serviceType);
       }
-    }
+    }  // This closing brace was missing!
     
     // Capture conversation ID from events
     if (eventName && eventName.includes('conversation:') && eventData.conversation_id) {
@@ -307,7 +340,7 @@ function App() {
 
       const sessionId = crypto.randomUUID();
       
-      // Use custom token if enabled and provided, otherwise generate one
+      // Handle correlation token
       let finalCorrelationToken;
       if (state.useCustomToken && state.customCorrelationToken.trim()) {
         finalCorrelationToken = state.customCorrelationToken.trim();
@@ -315,9 +348,20 @@ function App() {
         finalCorrelationToken = `transcript-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       }
       
+      // Handle JWT token
+      let finalJwtToken;
+      if (state.useCustomJwtToken && state.customJwtToken.trim()) {
+        finalJwtToken = state.customJwtToken.trim();
+      } else {
+        // In production, you'd fetch this from your backend
+        // For now, we'll use the custom token or leave it null
+        finalJwtToken = null;
+      }
+      
       updateState({ 
         sessionId, 
         correlationToken: finalCorrelationToken,
+        jwtToken: finalJwtToken,
         status: 'Requesting microphone access...', 
         eventLogs: [],
         transcript: null,
@@ -354,7 +398,7 @@ function App() {
 
       updateState({ status: 'Connecting to server...' });
       
-      // Create conversation WebSocket with correlation token
+      // Create conversation WebSocket with BOTH tokens
       const ws = createConversationWebSocket(
         sessionId,
         { 
@@ -368,7 +412,8 @@ function App() {
           llmModel: state.llmModel,
           sttProvider: state.sttProvider,
           sttModel: state.sttModel,
-          correlationToken: finalCorrelationToken  // Use the final token
+          correlationToken: finalCorrelationToken,
+          jwtToken: finalJwtToken  // Add JWT token
         },
         refs,
         updateState,
@@ -828,6 +873,76 @@ function App() {
               </div>
             </div>
 
+            {/* JWT Token Input */}
+            <div style={{ 
+              marginBottom: '15px',
+              padding: '15px',
+              background: '#2a2a2a',
+              border: '1px solid #3a3a3a',
+              borderRadius: '8px'
+            }}>
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '10px', 
+                  color: '#e0e0e0',
+                  fontSize: '0.95rem',
+                  cursor: isRecording ? 'not-allowed' : 'pointer',
+                  opacity: isRecording ? 0.6 : 1
+                }}>
+                  <input 
+                    type="checkbox" 
+                    checked={useCustomJwtToken} 
+                    onChange={(e) => updateState({ useCustomJwtToken: e.target.checked })}
+                    disabled={isRecording}
+                    style={{ cursor: isRecording ? 'not-allowed' : 'pointer' }}
+                  />
+                  Use Custom JWT Token (Authentication)
+                </label>
+              </div>
+              
+              {useCustomJwtToken && (
+                <div>
+                  <textarea
+                    value={customJwtToken}
+                    onChange={(e) => updateState({ customJwtToken: e.target.value })}
+                    disabled={isRecording}
+                    placeholder="Paste JWT token here (e.g., from /api/simulation-attempts response)..."
+                    style={{
+                      width: '100%',
+                      minHeight: '60px',
+                      padding: '8px 12px',
+                      background: '#1a1a1a',
+                      border: '1px solid #3a3a3a',
+                      borderRadius: '4px',
+                      color: '#e0e0e0',
+                      fontSize: '0.875rem',
+                      fontFamily: 'Monaco, Menlo, monospace',
+                      opacity: isRecording ? 0.6 : 1,
+                      resize: 'vertical'
+                    }}
+                  />
+                  <div style={{
+                    marginTop: '8px',
+                    fontSize: '0.75rem',
+                    color: '#9ca3af'
+                  }}>
+                    JWT token for authentication (get from backend /api/simulation-attempts)
+                  </div>
+                </div>
+              )}
+              
+              {!useCustomJwtToken && (
+                <div style={{
+                  fontSize: '0.75rem',
+                  color: '#fbbf24'
+                }}>
+                  ⚠️ No JWT token - connection may be rejected in production mode
+                </div>
+              )}
+            </div>
+
             {/* Correlation Token Input */}
             <div style={{ 
               marginBottom: '15px',
@@ -853,7 +968,7 @@ function App() {
                     disabled={isRecording}
                     style={{ cursor: isRecording ? 'not-allowed' : 'pointer' }}
                   />
-                  Use Custom Correlation Token
+                  Use Custom Correlation Token (Transcript Tracking)
                 </label>
               </div>
               
@@ -1316,6 +1431,7 @@ function App() {
               <li>Enable interruptions to interrupt the assistant mid-response</li>
               <li>Disable processors for lower latency (no tracking)</li>
               <li>Transcript is automatically saved with correlation token</li>
+              <li>Use JWT token for authentication in production mode</li>
             </ul>
           </div>
 
