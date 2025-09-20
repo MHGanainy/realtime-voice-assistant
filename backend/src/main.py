@@ -26,6 +26,8 @@ from src.services.conversation_manager import get_conversation_manager
 from src.services.transcript_storage import get_transcript_storage
 from src.events import get_event_bus, get_event_store
 
+import nltk; nltk.download('punkt_tab')
+
 settings = get_settings()
 logging.basicConfig(
     level=getattr(logging, settings.log_level),

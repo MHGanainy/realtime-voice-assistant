@@ -79,6 +79,8 @@ class PipelineFactory:
                 config.tts_provider,
                 model=config.tts_model,
                 voice_id=config.tts_voice,
+                speed=getattr(config, 'tts_speed', None),  # Add speed parameter
+                temperature=getattr(config, 'tts_temperature', None),  # Add temperature
                 aiohttp_session=aiohttp_session
             )
             
@@ -89,6 +91,16 @@ class PipelineFactory:
             
             context_aggregator = llm.create_context_aggregator(context_obj)
             
+            # Set aggregation timeouts for low latency
+            # These reduce the delay before processing user input and assistant responses
+            if hasattr(context_aggregator.user(), 'aggregation_timeout'):
+                context_aggregator.user().aggregation_timeout = 0.2
+                logger.info(f"Set user aggregation timeout to 0.2s for conversation {conversation_id}")
+            
+            if hasattr(context_aggregator.assistant(), 'bot_interruption_timeout'):
+                context_aggregator.assistant().bot_interruption_timeout = 0.2
+                logger.info(f"Set assistant interruption timeout to 0.2s for conversation {conversation_id}")
+            
             # Build pipeline components
             pipeline_components = []
             
@@ -98,10 +110,10 @@ class PipelineFactory:
             # Add billing processor if correlation token is available
             if correlation_token:
                 logger.info(
-            f"[PIPELINE] Adding BillingProcessor | "
-            f"conversation_id={conversation_id} | "
-            f"correlation_token={correlation_token}"
-        )
+                    f"[PIPELINE] Adding BillingProcessor | "
+                    f"conversation_id={conversation_id} | "
+                    f"correlation_token={correlation_token}"
+                )
                 pipeline_components.append(
                     BillingProcessor(
                         conversation_id=conversation_id,
@@ -109,12 +121,10 @@ class PipelineFactory:
                         transport=transport
                     )
                 )
-
-            logger.info(
-                f"[PIPELINE] BillingProcessor added successfully | "
-                f"conversation_id={conversation_id}"
-            )
-
+                logger.info(
+                    f"[PIPELINE] BillingProcessor added successfully | "
+                    f"conversation_id={conversation_id}"
+                )
             
             # Optionally add input processor
             if enable_processors:

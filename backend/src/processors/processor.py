@@ -16,7 +16,6 @@ from pipecat.frames.frames import (
     TextFrame,
     AudioRawFrame,
     StartInterruptionFrame,
-    StopInterruptionFrame,
     UserStartedSpeakingFrame,
     UserStoppedSpeakingFrame,
     BotStartedSpeakingFrame,

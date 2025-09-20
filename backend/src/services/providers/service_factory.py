@@ -17,11 +17,8 @@ from pipecat.services.openai.tts import OpenAITTSService
 from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
 from pipecat.services.together.llm import TogetherLLMService
-from pipecat.services.riva.tts import RivaTTSService
-from pipecat.services.rime.tts import RimeTTSService
-from pipecat.services.riva.stt import RivaSTTService
-from pipecat.services.riva.stt import RivaSegmentedSTTService
 from pipecat.transcriptions.language import Language
+from pipecat.services.inworld.tts import InworldTTSService
 
 from src.services.providers.deepinfra_llm import DeepInfraLLMService
 from src.services.providers.deepinfra_tts import DeepInfraHttpTTSService
@@ -30,7 +27,6 @@ from pipecat.services.assemblyai.stt import AssemblyAISTTService
 from pipecat.services.groq.llm import GroqLLMService
 from pipecat.services.groq.stt import GroqSTTService
 from pipecat.services.groq.tts import GroqTTSService
-from pipecat.services.aws.tts import AWSPollyTTSService
 
 logger = logging.getLogger(__name__)
 
@@ -78,33 +74,56 @@ def create_stt_service(service_name: str, **kwargs):
         )
     
     elif service_name == "assemblyai":
-        api_key = os.getenv("ASSEMBLY_API_KEY")
+        # Check both possible environment variable names
+        api_key = os.getenv("ASSEMBLYAI_API_KEY") or os.getenv("ASSEMBLY_API_KEY")
         if not api_key:
-            raise ValueError("ASSEMBLY_API_KEY not set")
+            raise ValueError("ASSEMBLYAI_API_KEY or ASSEMBLY_API_KEY not set")
         
         # Get connection parameters if provided
         connection_params = kwargs.get("connection_params")
         
-        # If no connection params provided, create with defaults
+        # If no connection params provided, create with all enhanced defaults
         if connection_params is None:
             from pipecat.services.assemblyai.stt import AssemblyAIConnectionParams
             
-            connection_params = AssemblyAIConnectionParams(
-                sample_rate=kwargs.get("sample_rate", 16000),
-                encoding=kwargs.get("encoding", "pcm_s16le"),
-                formatted_finals=kwargs.get("formatted_finals", True),
-                word_finalization_max_wait_time=kwargs.get("word_finalization_max_wait_time"),
-                end_of_turn_confidence_threshold=kwargs.get("end_of_turn_confidence_threshold"),
-                min_end_of_turn_silence_when_confident=kwargs.get("min_end_of_turn_silence_when_confident"),
-                max_turn_silence=kwargs.get("max_turn_silence")
-            )
+            # Build params dict with all possible settings
+            params_dict = {
+                "sample_rate": kwargs.get("sample_rate", 16000),
+                "encoding": kwargs.get("encoding", "pcm_s16le"),
+            }
+            
+            # Add optional parameters only if they're provided
+            if kwargs.get("model"):
+                params_dict["model"] = kwargs.get("model")
+            if kwargs.get("format_turns") is not None:
+                params_dict["formatted_finals"] = kwargs.get("format_turns")
+            if kwargs.get("formatted_finals") is not None:
+                params_dict["formatted_finals"] = kwargs.get("formatted_finals")
+            if kwargs.get("enable_partial_transcripts") is not None:
+                params_dict["enable_partial_transcripts"] = kwargs.get("enable_partial_transcripts")
+            if kwargs.get("use_immutable_finals") is not None:
+                params_dict["use_immutable_finals"] = kwargs.get("use_immutable_finals")
+            if kwargs.get("punctuate") is not None:
+                params_dict["punctuate"] = kwargs.get("punctuate")
+            if kwargs.get("format_text") is not None:
+                params_dict["format_text"] = kwargs.get("format_text")
+            if kwargs.get("word_finalization_max_wait_time"):
+                params_dict["word_finalization_max_wait_time"] = kwargs.get("word_finalization_max_wait_time")
+            if kwargs.get("end_of_turn_confidence_threshold"):
+                params_dict["end_of_turn_confidence_threshold"] = kwargs.get("end_of_turn_confidence_threshold")
+            if kwargs.get("min_end_of_turn_silence_when_confident"):
+                params_dict["min_end_of_turn_silence_when_confident"] = kwargs.get("min_end_of_turn_silence_when_confident")
+            if kwargs.get("max_turn_silence"):
+                params_dict["max_turn_silence"] = kwargs.get("max_turn_silence")
+            
+            connection_params = AssemblyAIConnectionParams(**params_dict)
         
         # Build the service kwargs
         service_kwargs = {
             "api_key": api_key,
             "connection_params": connection_params,
             "vad_force_turn_endpoint": kwargs.get("vad_force_turn_endpoint", True),
-            "language": Language.EN,  # AssemblyAI only supports English for streaming
+            "language": kwargs.get("language", Language.EN),  # AssemblyAI only supports English for streaming
         }
         
         # Only add api_endpoint_base_url if it's provided
@@ -112,33 +131,6 @@ def create_stt_service(service_name: str, **kwargs):
             service_kwargs["api_endpoint_base_url"] = kwargs["api_endpoint_base_url"]
         
         return AssemblyAISTTService(**service_kwargs)
-    
-    elif service_name == "riva":
-        api_key = os.getenv("RIVA_API_KEY")
-        if not api_key:
-            raise ValueError("RIVA_API_KEY not set")
-
-        # Use standard streaming service instead of segmented
-        model_name = kwargs.get("model", "parakeet-ctc-1.1b-asr")
-        function_id = kwargs.get("function_id", "1598d209-5e27-4d3c-8079-4751568b1081")
-
-        stt = RivaSTTService(
-            api_key=api_key,
-            model_function_map={
-                "function_id": function_id,
-                "model_name": model_name,
-            },
-            params=RivaSTTService.InputParams(
-                language=Language.EN_US
-            )
-        )
-        
-        # Configure for better transcription quality
-        stt._automatic_punctuation = True
-        stt._no_verbatim_transcripts = False
-        stt._profanity_filter = False
-        
-        return stt
     
     elif service_name == "groq":
         api_key = os.getenv("GROQ_API_KEY")
@@ -211,16 +203,40 @@ def create_llm_service(service_name: str, **kwargs):
             model=model
         )
         return llm
+    
     elif service_name == "groq":
         api_key = os.getenv("GROQ_API_KEY")
         if not api_key:
             raise ValueError("GROQ_API_KEY not set")
         
         model = kwargs.get("model", "llama-3.3-70b-versatile")
-        return GroqLLMService(
-            api_key=api_key,
-            model=model
-        )
+        
+        # Create InputParams with all settings for enhanced configuration
+        params_dict = {
+            "max_tokens": kwargs.get("max_tokens", 100),
+            "temperature": kwargs.get("temperature", 0.6),
+            "top_p": kwargs.get("top_p", 0.8),
+            "presence_penalty": kwargs.get("presence_penalty", 0.15),
+            "frequency_penalty": kwargs.get("frequency_penalty", 0.30),
+            "stream": kwargs.get("stream", True),
+        }
+        
+        # Only add optional parameters if they exist in the InputParams model
+        if hasattr(GroqLLMService, 'InputParams'):
+            params = GroqLLMService.InputParams(**params_dict)
+            return GroqLLMService(
+                api_key=api_key,
+                model=model,
+                params=params
+            )
+        else:
+            # Fallback if InputParams doesn't exist or has different structure
+            return GroqLLMService(
+                api_key=api_key,
+                model=model,
+                **params_dict  # Pass as kwargs directly
+            )
+    
     else:
         raise ValueError(f"Unknown LLM service: {service_name}")
 
@@ -293,6 +309,52 @@ def create_tts_service(service_name: str, **kwargs) -> Tuple[Any, int]:
             sample_rate=sample_rate,
             params=kwargs.get("params"),
         ), sample_rate
+    
+    elif service_name == "inworld":
+        api_key = os.getenv("INWORLD_API_KEY")
+        if not api_key:
+            raise ValueError("INWORLD_API_KEY not set")
+        
+        aiohttp_session = kwargs.get("aiohttp_session")
+        if aiohttp_session is None:
+            raise ValueError("create_tts_service('inworld') needs aiohttp_session=<ClientSession>")
+        
+        sample_rate = kwargs.get("sample_rate", 24000)
+        
+        # Voice configuration with default speeds
+        voice_id = kwargs.get("voice_id", "Edward")
+        
+        # Default speed mapping for each voice
+        default_speeds = {
+            "Craig": 1.2,
+            "Edward": 1.0,
+            "Olivia": 1.0,
+            "Wendy": 1.2,
+            "Priya": 1.0
+        }
+        
+        # Use provided speed or default for the voice
+        speed = kwargs.get("speed")
+        if speed is None:
+            speed = default_speeds.get(voice_id, 1.0)
+        
+        # Create InputParams with temperature and speed
+        params = InworldTTSService.InputParams(
+            temperature=kwargs.get("temperature", 1.1),
+            speed=speed
+        )
+        
+        logger.info(f"Creating Inworld TTS with voice={voice_id}, speed={speed}")
+        
+        return InworldTTSService(
+            api_key=api_key,
+            voice_id=voice_id,
+            model=kwargs.get("model", "inworld-tts-1"),
+            aiohttp_session=aiohttp_session,
+            sample_rate=sample_rate,
+            streaming=kwargs.get("streaming", True),
+            params=params,
+        ), sample_rate
 
     elif service_name == "speechify":
         api_key = os.getenv("SPEECHIFY_API_KEY")
@@ -314,71 +376,14 @@ def create_tts_service(service_name: str, **kwargs) -> Tuple[Any, int]:
         
         return SpeechifyTTSService(
             api_key=api_key,
-            voice_id=kwargs.get("voice_id", "kristy"),  # You'll need actual Speechify voice IDs
+            voice_id=kwargs.get("voice_id", "kristy"),
             model=kwargs.get("model", "simba-english"),
             aiohttp_session=aiohttp_session,
             sample_rate=sample_rate,
             params=params,
             base_url=kwargs.get("base_url", "https://api.sws.speechify.com")
         ), sample_rate
-    elif service_name == "rime":
-        sample_rate = 24000
-        api_key = os.getenv("RIME_API_KEY")
-        if not api_key:
-            raise ValueError("RIME_API_KEY not set")
-        return RimeTTSService(
-            api_key=api_key,
-            voice_id="cove",
-            model="mistv2",
-            params=RimeTTSService.InputParams(
-                language=Language.EN,
-                speed_alpha=1.0
-            )
-        ), sample_rate
-    elif service_name == "riva":
-        api_key = os.getenv("RIVA_API_KEY")
-        if not api_key:
-            raise ValueError("RIVA_API_KEY not set")
-
-        # Which model?  default = our #1 pick
-        model_name = kwargs.get("model", "radtts-hifigan-tts")
-        RIVA_TTS_MODEL_MAP = {
-            "radtts-hifigan-tts":  "5e607c81-7aa6-44ce-a11d-9e08f0a3fe49",   # ← new
-            "fastpitch-hifigan-tts": "0149dedb-2be8-4195-b9a0-e57e0e14f972",
-        }
-        # Look up function-id or allow override
-        function_id = kwargs.get(
-            "function_id",
-            RIVA_TTS_MODEL_MAP.get(model_name)
-        )
-        if function_id is None:
-            raise ValueError(
-                f"No function-id known for '{model_name}'. "
-                "Pass function_id=<uuid> explicitly."
-            )
-
-        # Quality flag: 20 = best, lower = faster
-        quality = kwargs.get("quality", 20)
-
-        # All Riva voices are mono PCM - we'll output 24 kHz to match most pipelines
-        sample_rate = kwargs.get("sample_rate", 24000)
-
-        tts = RivaTTSService(
-            api_key=api_key,
-            voice_id=kwargs.get("voice_id", "English-US.Female-1"),
-            sample_rate=sample_rate,
-            model_function_map={
-                "function_id": function_id,
-                "model_name": model_name,
-            },
-            params=RivaTTSService.InputParams(
-                language=Language.EN_US,
-                quality=quality,
-            ),
-        )
-        # Optional tweaks
-        # tts._settings["noise_scale"] = 0.667  # for subtle variation
-        return tts, sample_rate
+        
     elif service_name == "groq":
         api_key = os.getenv("GROQ_API_KEY")
         if not api_key:
@@ -395,6 +400,7 @@ def create_tts_service(service_name: str, **kwargs) -> Tuple[Any, int]:
                 seed=42
             )
         ), sample_rate
+        
     elif service_name == "google":    
         # Get settings
         settings = get_settings()
@@ -422,13 +428,7 @@ def create_tts_service(service_name: str, **kwargs) -> Tuple[Any, int]:
         
         # Determine if we should use streaming based on voice type
         use_streaming = kwargs.get("use_streaming", is_chirp_hd or is_journey)
-        logger.info(f"########################################################")
-        logger.info(f"voice_id: {voice_id}")
-        logger.info(f"is_chirp_hd: {is_chirp_hd}")
-        logger.info(f"is_journey: {is_journey}")
-        logger.info(f"use_streaming: {use_streaming}")
-        logger.info(f"Using GoogleTTSService (streaming) with voice: {voice_id}")
-        logger.info(f"########################################################")
+        
         # Set sample rate based on voice type
         if is_chirp_hd or is_journey:
             sample_rate = kwargs.get("sample_rate", 24000)  # Chirp HD works best at 24kHz
@@ -457,7 +457,6 @@ def create_tts_service(service_name: str, **kwargs) -> Tuple[Any, int]:
         
         # Create the appropriate service
         if use_streaming:
-            logger.info(f"voice_id: {voice_id} and use_streaming: {use_streaming}")
             # Streaming service for Chirp HD voices
             service = GoogleTTSService(
                 credentials_path=credentials_path,
@@ -466,7 +465,6 @@ def create_tts_service(service_name: str, **kwargs) -> Tuple[Any, int]:
                 params=params
             )
         else:
-            logger.info(f"Using GoogleHttpTTSService (non-streaming) with voice: {voice_id}")
             # Non-streaming service for all other voices
             service = GoogleHttpTTSService(
                 credentials_path=credentials_path,
@@ -481,56 +479,10 @@ def create_tts_service(service_name: str, **kwargs) -> Tuple[Any, int]:
             atexit.register(lambda: os.unlink(credentials_path))
         
         return service, sample_rate
-    elif service_name == "aws_polly":
-        # Get AWS credentials from environment
-        api_key = os.getenv("AWS_SECRET_ACCESS_KEY")
-        aws_access_key_id = os.getenv("AWS_ACCESS_KEY_ID")
-        aws_session_token = os.getenv("AWS_SESSION_TOKEN")  # Optional
-        region = os.getenv("AWS_REGION", "us-east-1")
-        
-        if not api_key or not aws_access_key_id:
-            raise ValueError("AWS_SECRET_ACCESS_KEY and AWS_ACCESS_KEY_ID must be set")
-        
-        # Default sample rate for AWS Polly
-        sample_rate = 24000 #kwargs.get("sample_rate", 16000)
-        
-        # Get voice and engine settings
-        voice_id = kwargs.get("voice_id", "Joanna")
-        # Important: look for 'model' first (to match other TTS services), then 'engine'
-        engine = kwargs.get("model") or kwargs.get("engine", "neural")
-        
-        # Create params
-        params_dict = {
-            "engine": engine,
-            "language": kwargs.get("language", Language.EN)
-        }
-        
-        # Add prosody parameters only if provided and engine supports them
-        if engine in ["standard", "neural"]:
-            if kwargs.get("pitch"):
-                params_dict["pitch"] = kwargs.get("pitch")
-            if kwargs.get("rate"):
-                params_dict["rate"] = kwargs.get("rate")
-            if kwargs.get("volume"):
-                params_dict["volume"] = kwargs.get("volume")
-        elif engine == "generative":
-            # Generative engine only supports rate in a different format
-            if kwargs.get("rate"):
-                params_dict["rate"] = kwargs.get("rate")
-        
-        params = AWSPollyTTSService.InputParams(**params_dict)
-        
-        return AWSPollyTTSService(
-            api_key=api_key,
-            aws_access_key_id=aws_access_key_id,
-            aws_session_token=aws_session_token,
-            region=region,
-            voice_id=voice_id,
-            sample_rate=sample_rate,
-            params=params
-        ), sample_rate
+          
     else:
         raise ValueError(f"Unknown TTS service: {service_name}")
+
 
 def create_llm_context(llm_service_type: str, system_prompt: str = None, **kwargs) -> OpenAILLMContext:
     """Create the appropriate LLM context based on the service type"""

@@ -18,7 +18,6 @@ from pipecat.frames.frames import (
     LLMMessagesFrame,
     LLMTextFrame,
     LLMUpdateSettingsFrame,
-    VisionImageRawFrame,
 )
 from pipecat.metrics.metrics import LLMTokenUsage
 from pipecat.processors.aggregators.llm_response import (
@@ -257,8 +256,6 @@ class DeepInfraLLMService(LLMService):
             context = frame.context
         elif isinstance(frame, LLMMessagesFrame):
             context = OpenAILLMContext.from_messages(frame.messages)
-        elif isinstance(frame, VisionImageRawFrame):
-            context = OpenAILLMContext.from_image_frame(frame)
         elif isinstance(frame, LLMUpdateSettingsFrame):
             await self._update_settings(frame.settings)
         else:

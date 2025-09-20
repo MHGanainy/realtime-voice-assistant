@@ -269,6 +269,16 @@ class WebSocketConnectionHandler:
         """Build conversation config from query parameters"""
         params = websocket.query_params
         
+        # Helper function to safely convert to float
+        def safe_float(value, default=None):
+            """Safely convert a value to float, returning default if None or invalid"""
+            if value is None:
+                return default
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return default
+        
         config = ConversationConfig(
             sample_rate=int(params.get("sample_rate", self._settings.default_sample_rate)),
             channels=int(params.get("channels", self._settings.default_channels)),
@@ -281,7 +291,8 @@ class WebSocketConnectionHandler:
             tts_provider=params.get("tts_provider", self._settings.default_tts_provider),
             tts_model=params.get("tts_model", self._settings.default_tts_model),
             tts_voice=params.get("tts_voice", self._settings.default_tts_voice),
-            
+            tts_speed=safe_float(params.get("tts_speed")),  # Will be None if not provided
+            tts_temperature=safe_float(params.get("tts_temperature")),  # Will be None if not provided
             system_prompt=params.get("system_prompt", self._settings.default_system_prompt),
             enable_interruptions=params.get("enable_interruptions", "true").lower() == "true",
             vad_enabled=params.get("vad_enabled", "true").lower() == "true",

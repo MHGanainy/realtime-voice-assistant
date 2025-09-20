@@ -40,6 +40,8 @@ class ConversationConfig:
     tts_provider: str = "deepinfra"
     tts_model: Optional[str] = "hexgrad/Kokoro-82M"
     tts_voice: str = "af_bella"
+    tts_speed: Optional[float] = None  # Add this
+    tts_temperature: Optional[float] = None  # Add this
     
     # Behavior settings
     system_prompt: str = "You are a helpful assistant. Keep your responses brief and conversational."
