@@ -112,13 +112,14 @@ export const handleEventMessage = (message, addEventLog, refs) => {
 export const createConversationWebSocket = (sessionId, params, refs, updateState, handleMessage, addEventLog) => {
   const queryParams = new URLSearchParams({
     session_id: sessionId,
-    stt_provider: params.sttProvider || 'deepinfra',
-    stt_model: params.sttModel || 'nova-2',
-    llm_provider: params.llmProvider || 'openai',
-    llm_model: params.llmModel || 'gpt-3.5-turbo',
-    tts_provider: params.ttsProvider || 'deepinfra',
-    tts_model: params.ttsModel || 'hexgrad/Kokoro-82M',
-    tts_voice: params.ttsVoice || 'af_bella',
+    stt_provider: params.sttProvider || 'assemblyai',
+    stt_model: params.sttModel || 'universal-streaming',
+    llm_provider: params.llmProvider || 'groq',
+    llm_model: params.llmModel || 'llama-3.3-70b-versatile',
+    tts_provider: params.ttsProvider || 'inworld',
+    tts_model: params.ttsModel || 'inworld-tts-1',
+    tts_voice: params.ttsVoice || 'Edward',
+    tts_speed: params.ttsSpeed || '1.0',  // Add TTS speed parameter
     system_prompt: params.systemPrompt,
     enable_interruptions: (params.enableInterruptions ?? true).toString(),
     vad_enabled: 'true',

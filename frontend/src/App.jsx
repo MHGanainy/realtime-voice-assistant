@@ -408,12 +408,13 @@ function App() {
           ttsProvider: state.ttsProvider,
           ttsModel: state.ttsModel,
           ttsVoice: state.ttsVoice,
+          ttsSpeed: getTTSConfig(state.ttsProviderKey).speed,  // Add this line
           llmProvider: state.llmProvider,
           llmModel: state.llmModel,
           sttProvider: state.sttProvider,
           sttModel: state.sttModel,
           correlationToken: finalCorrelationToken,
-          jwtToken: finalJwtToken  // Add JWT token
+          jwtToken: finalJwtToken
         },
         refs,
         updateState,
