@@ -105,7 +105,8 @@ class PipelineFactory:
                 pipeline_components.append(
                     BillingProcessor(
                         conversation_id=conversation_id,
-                        correlation_token=correlation_token
+                        correlation_token=correlation_token,
+                        transport=transport
                     )
                 )
 

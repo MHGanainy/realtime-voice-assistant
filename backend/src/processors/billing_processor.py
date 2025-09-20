@@ -96,13 +96,17 @@ class BillingProcessor(FrameProcessor):
         self, 
         conversation_id: str, 
         correlation_token: Optional[str] = None,
-        backend_shared_secret: Optional[str] = None
+        backend_shared_secret: Optional[str] = None,
+        transport=None  # Added transport parameter
     ):
         super().__init__()
         self.conversation_id = conversation_id
         self.correlation_token = correlation_token
         self.settings = get_settings()
         self.event_bus = get_event_bus()
+        
+        # Store transport for WebSocket access
+        self._transport = transport
         
         # Configuration
         self.backend_url = self.settings.backend_url
@@ -126,6 +130,7 @@ class BillingProcessor(FrameProcessor):
             "correlation_token": correlation_token,
             "backend_url": self.backend_url,
             "has_backend_shared_secret": bool(self.backend_shared_secret),
+            "has_transport": bool(self._transport),
             "initial_state": self.state.value,
             "timestamp": datetime.utcnow().isoformat()
         }
@@ -188,17 +193,6 @@ class BillingProcessor(FrameProcessor):
         await super().process_frame(frame, direction)
         
         frame_type = frame.__class__.__name__
-        
-        # Log frame processing for relevant frames
-        # if isinstance(frame, (AudioRawFrame, EndFrame)):
-        #     billing_logger.debug(
-        #         f"[FRAME] Processing | "
-        #         f"type={frame_type} | "
-        #         f"direction={direction.name} | "
-        #         f"state={self.state.value} | "
-        #         f"active={self._active} | "
-        #         f"first_audio={self._first_audio_received}"
-        # )
         
         # Start billing on first audio frame
         if isinstance(frame, AudioRawFrame) and not self._first_audio_received:
@@ -575,6 +569,51 @@ class BillingProcessor(FrameProcessor):
             
             return None
     
+    async def _close_websocket(self, reason: str):
+        """Close the WebSocket connection directly"""
+        try:
+            if self._transport and hasattr(self._transport, '_websocket'):
+                websocket = self._transport._websocket
+                
+                billing_logger.info(
+                    f"[WEBSOCKET] Closing connection | "
+                    f"conversation_id={self.conversation_id} | "
+                    f"reason={reason}"
+                )
+                
+                # Send termination message to client
+                try:
+                    await websocket.send_json({
+                        "type": "session_terminated",
+                        "reason": "insufficient_credits",
+                        "message": reason or "Your session has ended due to insufficient credits",
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+                    billing_logger.debug("[WEBSOCKET] Termination message sent to client")
+                except Exception as e:
+                    billing_logger.debug(f"[WEBSOCKET] Could not send termination message: {e}")
+                
+                # Close the WebSocket
+                try:
+                    await websocket.close(code=1000, reason="Billing terminated - insufficient credits")
+                    billing_logger.info("[WEBSOCKET] Connection closed successfully")
+                except Exception as e:
+                    billing_logger.error(f"[WEBSOCKET] Error closing connection: {e}")
+                    
+            else:
+                billing_logger.warning(
+                    f"[WEBSOCKET] No transport available to close | "
+                    f"has_transport={bool(self._transport)} | "
+                    f"has_websocket={bool(self._transport and hasattr(self._transport, '_websocket'))}"
+                )
+        except Exception as e:
+            billing_logger.error(
+                f"[WEBSOCKET] Exception during close | "
+                f"error={str(e)} | "
+                f"error_type={type(e).__name__}",
+                exc_info=True
+            )
+    
     async def _handle_billing_response(self, response: dict):
         """Handle billing response with detailed logging"""
         response_id = f"resp_{self.minutes_billed}_{int(time.time() * 1000)}"
@@ -649,6 +688,9 @@ class BillingProcessor(FrameProcessor):
             })
             
             await self._stop_billing("insufficient_credits")
+            
+            # CLOSE WEBSOCKET BEFORE SENDING END FRAME
+            await self._close_websocket(message)
             
             # Send end frame to terminate conversation
             billing_logger.info(
