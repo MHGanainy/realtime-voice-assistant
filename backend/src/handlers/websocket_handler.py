@@ -212,7 +212,8 @@ class WebSocketConnectionHandler:
                 transport=transport,
                 conversation_id=conversation.id,
                 aiohttp_session=aiohttp_session,
-                enable_processors=enable_processors
+                enable_processors=enable_processors,
+                correlation_token=correlation_token
             )
             
             self._active_connections[connection_id] = {

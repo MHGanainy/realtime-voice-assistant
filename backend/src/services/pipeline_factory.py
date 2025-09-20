@@ -17,6 +17,7 @@ from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.audio.vad.silero import SileroVADAnalyzer, VADParams
 from pipecat.processors.frame_processor import FrameProcessor
+from src.processors.billing_processor import BillingProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,8 @@ class PipelineFactory:
         transport: Any,
         conversation_id: str,
         aiohttp_session: Any,
-        enable_processors: bool = True  # New parameter to control processors
+        enable_processors: bool = True,  # New parameter to control processors
+        correlation_token: Optional[str] = None
     ) -> Tuple[Pipeline, int]:
         """
         Create a conversation pipeline with optional frame processors.
@@ -92,6 +94,26 @@ class PipelineFactory:
             
             # Add transport input
             pipeline_components.append(transport.input())
+    
+            # Add billing processor if correlation token is available
+            if correlation_token:
+                logger.info(
+            f"[PIPELINE] Adding BillingProcessor | "
+            f"conversation_id={conversation_id} | "
+            f"correlation_token={correlation_token}"
+        )
+                pipeline_components.append(
+                    BillingProcessor(
+                        conversation_id=conversation_id,
+                        correlation_token=correlation_token
+                    )
+                )
+
+            logger.info(
+                f"[PIPELINE] BillingProcessor added successfully | "
+                f"conversation_id={conversation_id}"
+            )
+
             
             # Optionally add input processor
             if enable_processors:
