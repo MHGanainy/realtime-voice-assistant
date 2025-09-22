@@ -3,6 +3,7 @@ Pipeline factory for creating conversation pipelines with optional frame process
 """
 from typing import Optional, Tuple, Any, List
 import logging
+import asyncio
 
 from src.domains.conversation import ConversationConfig
 from src.config.settings import get_settings
@@ -16,10 +17,59 @@ from src.events import get_event_bus
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.audio.vad.silero import SileroVADAnalyzer, VADParams
-from pipecat.processors.frame_processor import FrameProcessor
+from pipecat.processors.frame_processor import FrameProcessor, FrameDirection
+from pipecat.frames.frames import Frame, StartFrame, TextFrame, LLMFullResponseStartFrame, LLMFullResponseEndFrame
 from src.processors.billing_processor import BillingProcessor
 
 logger = logging.getLogger(__name__)
+
+
+class OpeningLineProcessor(FrameProcessor):
+    """Processor that injects an opening line at conversation start"""
+    
+    def __init__(self, opening_line: str, conversation_id: str):
+        super().__init__()
+        self.opening_line = opening_line
+        self.conversation_id = conversation_id
+        self._sent = False
+        self._started = False
+    
+    async def process_frame(self, frame: Frame, direction: FrameDirection):
+        await super().process_frame(frame, direction)
+        
+        # Detect when pipeline has started
+        if isinstance(frame, StartFrame) and not self._started:
+            self._started = True
+            logger.info(f"[OpeningLine] Pipeline started for conversation {self.conversation_id}")
+            
+            # Schedule the opening line to be sent after a brief delay
+            asyncio.create_task(self._send_opening_after_delay())
+        
+        # Always pass the original frame through
+        await self.push_frame(frame, direction)
+    
+    async def _send_opening_after_delay(self):
+        """Send opening line after a brief delay to ensure pipeline is ready"""
+        if self._sent:
+            return
+            
+        # Wait for pipeline to stabilize
+        if not self._sent:
+            self._sent = True
+            
+            logger.info(f"[OpeningLine] Injecting opening line: {self.opening_line[:100]}...")
+            
+            # Send frames that mimic LLM response to trigger TTS properly
+            # Start frame to indicate assistant is starting to speak
+            await self.push_frame(LLMFullResponseStartFrame(), FrameDirection.DOWNSTREAM)
+            
+            # The actual text content
+            await self.push_frame(TextFrame(text=self.opening_line), FrameDirection.DOWNSTREAM)
+            
+            # End frame to indicate assistant has finished
+            await self.push_frame(LLMFullResponseEndFrame(), FrameDirection.DOWNSTREAM)
+            
+            logger.info(f"[OpeningLine] Opening line frames injected successfully")
 
 
 class PipelineFactory:
@@ -36,8 +86,9 @@ class PipelineFactory:
         transport: Any,
         conversation_id: str,
         aiohttp_session: Any,
-        enable_processors: bool = True,  # New parameter to control processors
-        correlation_token: Optional[str] = None
+        enable_processors: bool = True,
+        correlation_token: Optional[str] = None,
+        opening_line: Optional[str] = None  # New parameter for opening line
     ) -> Tuple[Pipeline, int]:
         """
         Create a conversation pipeline with optional frame processors.
@@ -48,6 +99,8 @@ class PipelineFactory:
             conversation_id: Unique conversation identifier
             aiohttp_session: HTTP session for services
             enable_processors: Whether to add conversation processors
+            correlation_token: Token for billing/tracking
+            opening_line: Optional opening line to speak at start
             
         Returns:
             Tuple of (pipeline, output_sample_rate)
@@ -56,7 +109,8 @@ class PipelineFactory:
             f"pipeline:{conversation_id}:lifecycle:creating",
             conversation_id=conversation_id,
             config=config.to_dict(),
-            processors_enabled=enable_processors
+            processors_enabled=enable_processors,
+            has_opening_line=bool(opening_line)
         )
         
         try:
@@ -79,8 +133,8 @@ class PipelineFactory:
                 config.tts_provider,
                 model=config.tts_model,
                 voice_id=config.tts_voice,
-                speed=getattr(config, 'tts_speed', None),  # Add speed parameter
-                temperature=getattr(config, 'tts_temperature', None),  # Add temperature
+                speed=getattr(config, 'tts_speed', None),
+                temperature=getattr(config, 'tts_temperature', None),
                 aiohttp_session=aiohttp_session
             )
             
@@ -92,7 +146,6 @@ class PipelineFactory:
             context_aggregator = llm.create_context_aggregator(context_obj)
             
             # Set aggregation timeouts for low latency
-            # These reduce the delay before processing user input and assistant responses
             if hasattr(context_aggregator.user(), 'aggregation_timeout'):
                 context_aggregator.user().aggregation_timeout = 0.2
                 logger.info(f"Set user aggregation timeout to 0.2s for conversation {conversation_id}")
@@ -148,6 +201,21 @@ class PipelineFactory:
             if enable_processors:
                 pipeline_components.append(create_conversation_processor(conversation_id, "post-llm"))
             
+            # Add opening line processor AFTER LLM, BEFORE TTS
+            # This ensures the text flows directly to TTS
+            if opening_line:
+                logger.info(
+                    f"[PIPELINE] Adding OpeningLineProcessor | "
+                    f"conversation_id={conversation_id} | "
+                    f"opening_line_length={len(opening_line)}"
+                )
+                pipeline_components.append(
+                    OpeningLineProcessor(
+                        opening_line=opening_line,
+                        conversation_id=conversation_id
+                    )
+                )
+            
             # Add TTS
             pipeline_components.append(tts)
             
@@ -166,7 +234,8 @@ class PipelineFactory:
             
             logger.info(
                 f"Created pipeline for conversation {conversation_id} "
-                f"(processors {'enabled' if enable_processors else 'disabled'})"
+                f"(processors {'enabled' if enable_processors else 'disabled'}, "
+                f"opening_line {'present' if opening_line else 'none'})"
             )
             
             await self._event_bus.emit(
@@ -174,7 +243,8 @@ class PipelineFactory:
                 conversation_id=conversation_id,
                 pipeline_id=id(pipeline),
                 output_sample_rate=output_sample_rate,
-                processors_enabled=enable_processors
+                processors_enabled=enable_processors,
+                has_opening_line=bool(opening_line)
             )
             
             return pipeline, output_sample_rate

@@ -119,7 +119,7 @@ export const createConversationWebSocket = (sessionId, params, refs, updateState
     tts_provider: params.ttsProvider || 'inworld',
     tts_model: params.ttsModel || 'inworld-tts-1',
     tts_voice: params.ttsVoice || 'Edward',
-    tts_speed: params.ttsSpeed || '1.0',  // Add TTS speed parameter
+    tts_speed: params.ttsSpeed || '1.0',
     system_prompt: params.systemPrompt,
     enable_interruptions: (params.enableInterruptions ?? true).toString(),
     vad_enabled: 'true',
@@ -136,12 +136,22 @@ export const createConversationWebSocket = (sessionId, params, refs, updateState
     queryParams.append('correlation_token', params.correlationToken);
   }
   
+  // Add opening line if provided
+  if (params.openingLine) {
+    queryParams.append('opening_line', params.openingLine);
+  }
+  
   // Log warning if missing tokens
   if (!params.jwtToken || !params.correlationToken) {
     console.warn('Missing required tokens:', {
       hasJWT: !!params.jwtToken,
       hasCorrelation: !!params.correlationToken
     });
+  }
+  
+  // Log if opening line is set
+  if (params.openingLine) {
+    console.log('Opening line configured:', params.openingLine.substring(0, 50) + '...');
   }
   
   const ws = new WebSocket(`${CONFIG.WS_BASE_URL}/ws/conversation?${queryParams}`);
@@ -151,15 +161,17 @@ export const createConversationWebSocket = (sessionId, params, refs, updateState
     updateState({ 
       isConnected: true, 
       isRecording: true, 
-      status: `Connected! Speak naturally... (Processors ${params.enableProcessors ? 'enabled' : 'disabled'})` 
+      status: `Connected! ${params.openingLine ? 'AI will speak first...' : 'Speak naturally...'} (Processors ${params.enableProcessors ? 'enabled' : 'disabled'})` 
     });
     
-    // Log the connection settings
+    // Log the connection settings including opening line
     addEventLog('system:connection:settings', {
       processors_enabled: params.enableProcessors,
       interruptions_enabled: params.enableInterruptions ?? true,
       correlation_token: params.correlationToken,
       has_jwt_token: !!params.jwtToken,
+      has_opening_line: !!params.openingLine,
+      opening_line_preview: params.openingLine ? params.openingLine.substring(0, 50) + '...' : null,
       stt_provider: params.sttProvider,
       stt_model: params.sttModel,
       llm_provider: params.llmProvider,

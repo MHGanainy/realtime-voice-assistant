@@ -155,11 +155,18 @@ class WebSocketConnectionHandler:
                 logger.info(f"[DEV MODE] Accepting connection: {connection_id} with correlation: {correlation_token}")
             # ===== AUTHENTICATION END =====
             
+            # Extract opening line parameter
+            opening_line = websocket.query_params.get("opening_line")
+            if opening_line:
+                logger.info(f"Opening line configured for connection {connection_id}: {opening_line[:50]}...")
+            
             await self._event_bus.emit(
                 f"connection:{connection_id}:established",
                 connection_id=connection_id,
                 session_id=session_id,
                 correlation_token=correlation_token,
+                opening_line=opening_line,
+                has_opening_line=bool(opening_line),
                 client_ip=websocket.client.host if websocket.client else None,
                 user_agent=websocket.headers.get("user-agent"),
                 **authenticated_data
@@ -173,6 +180,8 @@ class WebSocketConnectionHandler:
                 metadata={
                     "session_id": session_id,
                     "correlation_token": correlation_token,
+                    "opening_line": opening_line,
+                    "has_opening_line": bool(opening_line),
                     **authenticated_data
                 }
             )
@@ -192,11 +201,16 @@ class WebSocketConnectionHandler:
                 correlation_token=correlation_token
             )
             
+            # Store opening line in transcript metadata if present
             metadata_update = {
                 "simulation_attempt_id": correlation_token,
                 "connected_at": datetime.utcnow().isoformat(),
+                "has_opening_line": bool(opening_line),
                 **authenticated_data
             }
+            if opening_line:
+                metadata_update["opening_line"] = opening_line
+                
             await self.transcript_storage.update_metadata(
                 conversation_id=conversation.id,
                 metadata=metadata_update
@@ -207,13 +221,15 @@ class WebSocketConnectionHandler:
             
             transport = self._create_transport(websocket, config)
             
+            # Pass opening line to pipeline factory
             pipeline, output_sample_rate = await self.pipeline_factory.create_pipeline(
                 config=config,
                 transport=transport,
                 conversation_id=conversation.id,
                 aiohttp_session=aiohttp_session,
                 enable_processors=enable_processors,
-                correlation_token=correlation_token
+                correlation_token=correlation_token,
+                opening_line=opening_line  # Add opening line parameter
             )
             
             self._active_connections[connection_id] = {
@@ -226,6 +242,8 @@ class WebSocketConnectionHandler:
                 "connected_at": datetime.utcnow(),
                 "processors_enabled": enable_processors,
                 "correlation_token": correlation_token,
+                "opening_line": opening_line,
+                "has_opening_line": bool(opening_line),
                 **authenticated_data
             }
             
@@ -249,7 +267,8 @@ class WebSocketConnectionHandler:
                 f"Starting pipeline for conversation {conversation.id} "
                 f"(processors {'enabled' if enable_processors else 'disabled'}, "
                 f"correlation: {correlation_token}, "
-                f"auth: {authenticated_data.get('auth_method', 'none')})"
+                f"auth: {authenticated_data.get('auth_method', 'none')}, "
+                f"opening_line: {'yes' if opening_line else 'no'})"
             )
             
             await self.conversation_manager.run_pipeline_for_conversation(
@@ -350,6 +369,8 @@ class WebSocketConnectionHandler:
                 connection_id=connection_id,
                 session_id=conversation.participant.session_id,
                 correlation_token=conn_info.get("correlation_token"),
+                opening_line=conn_info.get("opening_line"),
+                has_opening_line=conn_info.get("has_opening_line", False),
                 reason="client_disconnect",
                 processors_enabled=conn_info.get("processors_enabled", True)
             )
@@ -384,6 +405,8 @@ class WebSocketConnectionHandler:
                 connection_id=connection_id,
                 session_id=conversation.participant.session_id,
                 correlation_token=conn_info.get("correlation_token"),
+                opening_line=conn_info.get("opening_line"),
+                has_opening_line=conn_info.get("has_opening_line", False),
                 error_type=type(error).__name__,
                 error_message=str(error)
             )

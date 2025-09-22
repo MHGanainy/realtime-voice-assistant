@@ -97,6 +97,9 @@ function App() {
     jwtToken: null,
     customJwtToken: '',
     useCustomJwtToken: false,
+    // Opening line state
+    openingLine: '',
+    useOpeningLine: false,
     // Transcript state
     transcript: null,
     showTranscript: false,
@@ -124,7 +127,7 @@ function App() {
 
   const updateState = (updates) => setState(prev => ({ ...prev, ...updates }));
 
-  // Destructure state - INCLUDING JWT token fields
+  // Destructure state - INCLUDING JWT token fields and opening line
   const { 
     isRecording, isConnected, isAssistantSpeaking, sessionId, 
     status, conversationHistory, devices, selectedDevice, isMicMuted,
@@ -136,6 +139,7 @@ function App() {
     metrics, 
     correlationToken, customCorrelationToken, useCustomToken,
     jwtToken, customJwtToken, useCustomJwtToken,
+    openingLine, useOpeningLine,
     transcript, showTranscript, conversationId
   } = state;
 
@@ -209,7 +213,7 @@ function App() {
       } else {
         console.log('❌ Invalid or missing service type:', serviceType);
       }
-    }  // This closing brace was missing!
+    }
     
     // Capture conversation ID from events
     if (eventName && eventName.includes('conversation:') && eventData.conversation_id) {
@@ -398,7 +402,7 @@ function App() {
 
       updateState({ status: 'Connecting to server...' });
       
-      // Create conversation WebSocket with BOTH tokens
+      // Create conversation WebSocket with BOTH tokens and opening line
       const ws = createConversationWebSocket(
         sessionId,
         { 
@@ -408,13 +412,14 @@ function App() {
           ttsProvider: state.ttsProvider,
           ttsModel: state.ttsModel,
           ttsVoice: state.ttsVoice,
-          ttsSpeed: getTTSConfig(state.ttsProviderKey).speed,  // Add this line
+          ttsSpeed: getTTSConfig(state.ttsProviderKey).speed,
           llmProvider: state.llmProvider,
           llmModel: state.llmModel,
           sttProvider: state.sttProvider,
           sttModel: state.sttModel,
           correlationToken: finalCorrelationToken,
-          jwtToken: finalJwtToken
+          jwtToken: finalJwtToken,
+          openingLine: state.useOpeningLine && state.openingLine ? state.openingLine : null
         },
         refs,
         updateState,
@@ -874,6 +879,76 @@ function App() {
               </div>
             </div>
 
+            {/* Opening Line Input - NEW SECTION */}
+            <div style={{ 
+              marginBottom: '15px',
+              padding: '15px',
+              background: '#2a2a2a',
+              border: '1px solid #3a3a3a',
+              borderRadius: '8px'
+            }}>
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '10px', 
+                  color: '#e0e0e0',
+                  fontSize: '0.95rem',
+                  cursor: isRecording ? 'not-allowed' : 'pointer',
+                  opacity: isRecording ? 0.6 : 1
+                }}>
+                  <input 
+                    type="checkbox" 
+                    checked={useOpeningLine} 
+                    onChange={(e) => updateState({ useOpeningLine: e.target.checked })}
+                    disabled={isRecording}
+                    style={{ cursor: isRecording ? 'not-allowed' : 'pointer' }}
+                  />
+                  Set Opening Line (AI speaks first)
+                </label>
+              </div>
+              
+              {useOpeningLine && (
+                <div>
+                  <textarea
+                    value={openingLine}
+                    onChange={(e) => updateState({ openingLine: e.target.value })}
+                    disabled={isRecording}
+                    placeholder="Enter the opening line the AI should speak when conversation starts (e.g., 'Hello! Welcome to our service. How can I help you today?')"
+                    style={{
+                      width: '100%',
+                      minHeight: '60px',
+                      padding: '8px 12px',
+                      background: '#1a1a1a',
+                      border: '1px solid #3a3a3a',
+                      borderRadius: '4px',
+                      color: '#e0e0e0',
+                      fontSize: '0.875rem',
+                      fontFamily: 'Monaco, Menlo, monospace',
+                      opacity: isRecording ? 0.6 : 1,
+                      resize: 'vertical'
+                    }}
+                  />
+                  <div style={{
+                    marginTop: '8px',
+                    fontSize: '0.75rem',
+                    color: '#9ca3af'
+                  }}>
+                    The AI will speak this text immediately when the conversation starts, before waiting for user input
+                  </div>
+                </div>
+              )}
+              
+              {!useOpeningLine && (
+                <div style={{
+                  fontSize: '0.75rem',
+                  color: '#666'
+                }}>
+                  The AI will wait for you to speak first
+                </div>
+              )}
+            </div>
+
             {/* JWT Token Input */}
             <div style={{ 
               marginBottom: '15px',
@@ -1045,6 +1120,14 @@ function App() {
                 color: enableInterruptions ? '#34d399' : '#fbbf24'
               }}>
                 {enableInterruptions ? '🎯 Interruptions On' : '🔒 No Interruptions'}
+              </div>
+            )}
+            {isConnected && useOpeningLine && openingLine && (
+              <div className="indicator active" style={{
+                background: '#3a3a3a',
+                color: '#60a5fa'
+              }}>
+                🎯 Opening Line Active
               </div>
             )}
           </div>
