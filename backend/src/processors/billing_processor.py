@@ -248,18 +248,50 @@ class BillingProcessor(FrameProcessor):
             self._active = True
             self.start_time = datetime.utcnow()
             
+            # IMMEDIATELY BILL THE FIRST MINUTE
+            self.minutes_billed = 1
+            
             start_data = {
                 "conversation_id": self.conversation_id,
                 "correlation_token": self.correlation_token,
                 "start_time": self.start_time.isoformat(),
-                "backend_url": self.backend_url
+                "backend_url": self.backend_url,
+                "initial_minute_billed": True
             }
             
             billing_logger.info(
-                f"[START] Starting billing timer | {json.dumps(start_data)}"
+                f"[START] Starting billing timer and billing first minute immediately | {json.dumps(start_data)}"
             )
             
-            # Create billing loop task
+            # Send the first minute billing webhook immediately
+            billing_logger.info(
+                f"[START] Sending initial billing webhook for minute 1 | "
+                f"conversation_id={self.conversation_id}"
+            )
+            
+            webhook_start = time.time()
+            response = await self._send_billing_webhook()
+            webhook_duration = (time.time() - webhook_start) * 1000
+            
+            webhook_result = {
+                "minute": 1,
+                "success": bool(response),
+                "latency_ms": webhook_duration,
+                "initial_billing": True
+            }
+            
+            billing_logger.info(
+                f"[START] Initial webhook result | {json.dumps(webhook_result)}"
+            )
+            
+            if response:
+                await self._handle_billing_response(response)
+            else:
+                await self._emit_billing_event("initial_webhook_failed", {
+                    "minute": 1
+                })
+            
+            # Create billing loop task for subsequent minutes
             self._billing_task = asyncio.create_task(
                 self._billing_loop(),
                 name=f"billing_loop_{self.conversation_id}"
@@ -286,13 +318,14 @@ class BillingProcessor(FrameProcessor):
             raise
     
     async def _billing_loop(self):
-        """Main billing loop with comprehensive logging"""
+        """Main billing loop with comprehensive logging - starts from minute 2"""
         loop_id = f"{self.conversation_id}_{int(time.time())}"
         
         billing_logger.info(
             f"[LOOP] Started | "
             f"loop_id={loop_id} | "
-            f"conversation_id={self.conversation_id}"
+            f"conversation_id={self.conversation_id} | "
+            f"starting_from_minute=2"
         )
         
         iteration = 0
@@ -309,6 +342,8 @@ class BillingProcessor(FrameProcessor):
                     f"waiting_60s=true"
                 )
                 
+                # Wait for 1 minute
+                await asyncio.sleep(60)
                 
                 if not self._active:
                     billing_logger.info(
@@ -356,8 +391,7 @@ class BillingProcessor(FrameProcessor):
                     })
                 
                 loop_duration = (time.time() - loop_start)
-                # Wait for 1 minute
-                await asyncio.sleep(60)
+                
                 billing_logger.debug(
                     f"[LOOP] Iteration complete | "
                     f"loop_id={loop_id} | "
@@ -739,32 +773,21 @@ class BillingProcessor(FrameProcessor):
                     f"task_name={task_name}"
                 )
         
-        # Calculate session duration and handle partial minute
+        # Calculate session duration - NO LONGER billing for partial minutes
+        # Since we bill immediately on start, we don't need to check for partial minutes
         if self.start_time:
             elapsed = datetime.utcnow() - self.start_time
             total_seconds = elapsed.total_seconds()
-            calculated_minutes = int(total_seconds / 60) + (1 if total_seconds % 60 > 0 else 0)
             
             session_data = {
                 "stop_id": stop_id,
                 "total_seconds": total_seconds,
                 "billed_minutes": self.minutes_billed,
-                "calculated_minutes": calculated_minutes,
-                "needs_final_billing": calculated_minutes > self.minutes_billed
             }
             
             billing_logger.info(
                 f"[STOP] Session duration | {json.dumps(session_data)}"
             )
-            
-            # Bill for partial minute if needed
-            if calculated_minutes > self.minutes_billed:
-                billing_logger.info(
-                    f"[STOP] Billing partial minute | "
-                    f"stop_id={stop_id} | "
-                    f"minute={calculated_minutes}"
-                )
-                await self._send_final_webhook(calculated_minutes)
         
         # Log final metrics
         final_metrics = self.metrics.to_dict()
