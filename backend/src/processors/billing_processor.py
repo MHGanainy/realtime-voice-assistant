@@ -309,8 +309,6 @@ class BillingProcessor(FrameProcessor):
                     f"waiting_60s=true"
                 )
                 
-                # Wait for 1 minute
-                await asyncio.sleep(60)
                 
                 if not self._active:
                     billing_logger.info(
@@ -358,7 +356,8 @@ class BillingProcessor(FrameProcessor):
                     })
                 
                 loop_duration = (time.time() - loop_start)
-                
+                # Wait for 1 minute
+                await asyncio.sleep(60)
                 billing_logger.debug(
                     f"[LOOP] Iteration complete | "
                     f"loop_id={loop_id} | "
