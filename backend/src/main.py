@@ -1,5 +1,5 @@
 """
-Voice Assistant API - Main Application
+Voice Assistant API - Main Application with Logfire debugging
 """
 from pathlib import Path
 from dotenv import load_dotenv
@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 from typing import Optional
 import logging
 import sys
+import os
 from pathlib import Path
 from contextlib import asynccontextmanager
 import asyncio
@@ -25,6 +26,8 @@ from src.handlers.events_websocket_handler import get_events_websocket_handler
 from src.services.conversation_manager import get_conversation_manager
 from src.services.transcript_storage import get_transcript_storage
 from src.events import get_event_bus, get_event_store
+from src.services.connection_monitor import get_connection_monitor
+from src.services.logfire_service import get_logfire
 
 import nltk; nltk.download('punkt_tab')
 
@@ -49,8 +52,22 @@ async def periodic_transcript_cleanup():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan manager"""
+    """Application lifespan manager with Logfire and monitoring"""
     logger.info(f"Starting {settings.app_name} v{settings.app_version}")
+    
+    # Initialize Logfire
+    logfire = get_logfire()
+    logfire.log_connection_event(
+        connection_id="system",
+        event="startup",
+        app_name=settings.app_name,
+        version=settings.app_version
+    )
+    
+    # Start connection monitor
+    monitor = get_connection_monitor()
+    await monitor.start()
+    logger.info("Connection monitor started")
     
     api_keys_status = settings.validate_api_keys()
     if not any(api_keys_status.values()):
@@ -69,9 +86,21 @@ async def lifespan(app: FastAPI):
     # Start background tasks
     cleanup_task = asyncio.create_task(periodic_transcript_cleanup())
     
+    # Log successful startup
+    logfire.log_connection_event(
+        connection_id="system",
+        event="startup_complete",
+        monitor_started=True,
+        api_keys_status=api_keys_status
+    )
+    
     yield
     
     logger.info("Shutting down application...")
+    
+    # Stop connection monitor
+    await monitor.stop()
+    logger.info("Connection monitor stopped")
     
     # Cancel background tasks
     cleanup_task.cancel()
@@ -92,6 +121,13 @@ async def lifespan(app: FastAPI):
     await conversation_manager.shutdown()
     
     await event_store.shutdown()
+    
+    # Log shutdown
+    logfire.log_connection_event(
+        connection_id="system",
+        event="shutdown_complete"
+    )
+    
     logger.info("Application shutdown complete")
 
 
@@ -121,10 +157,22 @@ event_store = get_event_store()
 @app.get("/")
 async def root():
     """Root endpoint"""
+    # Get monitor stats if available
+    monitor_stats = {}
+    try:
+        monitor = get_connection_monitor()
+        monitor_stats = monitor.get_stats()
+    except:
+        pass
+    
     return {
         "name": settings.app_name,
         "version": settings.app_version,
         "description": "Realtime voice conversation with AI assistant",
+        "monitoring": {
+            "logfire_enabled": bool(os.getenv('LOGFIRE_TOKEN')),  # Fixed this line
+            "connection_monitor": monitor_stats
+        },
         "endpoints": {
             "health": "/api/health",
             "websocket": "/ws/conversation",
@@ -149,9 +197,17 @@ async def root():
 
 @app.get("/api/health")
 async def health_check():
-    """Health check endpoint"""
+    """Health check endpoint with monitoring status"""
     active_conversations = conversation_manager.get_active_conversations()
     api_keys_status = settings.validate_api_keys()
+    
+    # Get monitor stats
+    monitor_stats = {}
+    try:
+        monitor = get_connection_monitor()
+        monitor_stats = monitor.get_stats()
+    except:
+        pass
     
     return {
         "status": "healthy",
@@ -159,6 +215,10 @@ async def health_check():
         "version": settings.app_version,
         "active_conversations": len(active_conversations),
         "api_keys_configured": api_keys_status,
+        "monitoring": {
+            "connection_monitor": monitor_stats,
+            "logfire_enabled": bool(os.getenv('LOGFIRE_TOKEN'))
+        },
         "event_system": {
             "bus_stats": event_bus.get_stats(),
             "store_stats": event_store.get_stats(),
@@ -171,6 +231,9 @@ async def health_check():
         }
     }
 
+
+# ... rest of your endpoints remain exactly the same ...
+# (I'm keeping the rest of the file identical to avoid confusion)
 
 @app.websocket("/ws/conversation")
 async def websocket_conversation(
@@ -345,13 +408,21 @@ async def get_conversation_transcript(
 
 @app.get("/api/stats")
 async def get_statistics():
-    """Get application statistics"""
+    """Get application statistics with monitoring info"""
     all_conversations = conversation_manager.get_all_conversations()
     active_conversations = conversation_manager.get_active_conversations()
     
     total_duration_ms = sum(c.metrics.total_duration_ms for c in all_conversations.values())
     total_turns = sum(c.metrics.turn_count for c in all_conversations.values())
     total_interruptions = sum(c.metrics.interruption_count for c in all_conversations.values())
+    
+    # Get monitor stats
+    monitor_stats = {}
+    try:
+        monitor = get_connection_monitor()
+        monitor_stats = monitor.get_stats()
+    except:
+        pass
     
     return {
         "conversations": {
@@ -366,6 +437,7 @@ async def get_statistics():
             "average_duration_ms": total_duration_ms / len(all_conversations) if all_conversations else 0,
             "average_turns_per_conversation": total_turns / len(all_conversations) if all_conversations else 0
         },
+        "monitoring": monitor_stats,
         "transcripts": transcript_storage.get_stats(),
         "events": {
             "bus": event_bus.get_stats(),
@@ -433,8 +505,21 @@ async def get_event_history(
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
-    """Global exception handler"""
+    """Global exception handler with Logfire logging"""
     logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    
+    # Log to Logfire
+    try:
+        logfire = get_logfire()
+        logfire.log_error(
+            connection_id="global",
+            error=exc,
+            context="unhandled_exception",
+            path=str(request.url),
+            method=request.method
+        )
+    except:
+        pass
     
     await event_bus.emit(
         "global:error:unhandled",

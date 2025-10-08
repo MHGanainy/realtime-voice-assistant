@@ -41,3 +41,5 @@ pyee
 google-cloud-speech==2.32.0
 google-cloud-texttospeech==2.26.0
 google-genai==1.14.0
+
+logfire==4.11.0
