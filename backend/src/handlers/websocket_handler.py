@@ -596,15 +596,15 @@ class WebSocketConnectionHandler:
             tts_model=params.get("tts_model", self._settings.default_tts_model),
             tts_voice=params.get("tts_voice", self._settings.default_tts_voice),
             tts_speed=safe_float(params.get("tts_speed")),
-            tts_temperature=safe_float(params.get("tts_temperature")),
+            tts_temperature=0.7 #safe_float(params.get("tts_temperature")),
             system_prompt=params.get("system_prompt", self._settings.default_system_prompt),
             enable_interruptions=params.get("enable_interruptions", "true").lower() == "true",
             vad_enabled=params.get("vad_enabled", "true").lower() == "true",
             vad_threshold=float(params.get("vad_threshold", 0.5)),
             
-            llm_temperature=float(params.get("llm_temperature", 0.7)),
-            llm_max_tokens=int(params.get("llm_max_tokens", 4096)),
-            llm_top_p=float(params.get("llm_top_p", 1.0))
+            llm_temperature=0.3 #float(params.get("llm_temperature", 0.7)),
+            llm_max_tokens=4096 #int(params.get("llm_max_tokens", 4096)),
+            llm_top_p=0.8 #float(params.get("llm_top_p", 1.0))
         )
         
         return config

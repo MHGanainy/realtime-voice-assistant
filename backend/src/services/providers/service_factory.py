@@ -173,13 +173,13 @@ def create_llm_service(service_name: str, **kwargs):
         base_url = kwargs.get("base_url", "https://api.deepinfra.com/v1/openai")
         
         params_dict = {
-            "max_tokens": kwargs.get("max_tokens", 4096),
-            "temperature": kwargs.get("temperature", 0.7),
-            "top_p": kwargs.get("top_p", 1.0),
-            "frequency_penalty": kwargs.get("frequency_penalty", 0.0),
-            "presence_penalty": kwargs.get("presence_penalty", 0.0),
-            "stop": kwargs.get("stop", None),
-            "stream": kwargs.get("stream", True),
+            "max_tokens": 4096 #kwargs.get("max_tokens", 4096),
+            "temperature": 0.3 #kwargs.get("temperature", 0.7),
+            "top_p": 0.8 #kwargs.get("top_p", 1.0),
+            "frequency_penalty":0.15 # kwargs.get("frequency_penalty", 0.0),
+            "presence_penalty": 0.30 #kwargs.get("presence_penalty", 0.0),
+            "stop": None, #kwargs.get("stop", None),
+            "stream": True, #kwargs.get("stream", True),
             "extra": kwargs.get("extra", {})
         }
         
