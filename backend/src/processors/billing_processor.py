@@ -438,7 +438,7 @@ class BillingProcessor(FrameProcessor):
             )
     
     async def _send_billing_webhook(self) -> Optional[dict]:
-        """Send billing webhook with detailed logging and metrics"""
+        """Send billing webhook with retry logic and graceful DNS failure handling"""
         request_id = f"req_{self.minutes_billed}_{int(time.time() * 1000)}"
         self.metrics.webhook_attempts += 1
         
@@ -474,133 +474,205 @@ class BillingProcessor(FrameProcessor):
             f"data={json.dumps(webhook_data)}"
         )
         
-        try:
-            start_time = time.time()
-            
-            async with aiohttp.ClientSession() as session:
-                headers = {
-                    "Content-Type": "application/json",
-                    "X-Internal-Secret": self.backend_shared_secret,
-                    "X-Request-ID": request_id
-                }
+        # Retry logic for DNS failures
+        max_retries = 3
+        retry_delay = 2.0
+        
+        for retry_attempt in range(max_retries):
+            try:
+                start_time = time.time()
                 
-                billing_logger.debug(
-                    f"[WEBHOOK] Sending POST | "
-                    f"request_id={request_id} | "
-                    f"headers={json.dumps({k: v if k != 'X-Internal-Secret' else 'REDACTED' for k, v in headers.items()})}"
-                )
-                
-                async with session.post(
-                    webhook_url,
-                    json=webhook_data,
-                    headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=5)
-                ) as response:
-                    latency_ms = (time.time() - start_time) * 1000
-                    response_text = await response.text()
-                    
-                    # Update metrics
-                    self.metrics.total_latency_ms += latency_ms
-                    self.metrics.min_latency_ms = min(self.metrics.min_latency_ms, latency_ms)
-                    self.metrics.max_latency_ms = max(self.metrics.max_latency_ms, latency_ms)
-                    self.metrics.last_webhook_time = datetime.utcnow()
-                    
-                    response_log = {
-                        "request_id": request_id,
-                        "status": response.status,
-                        "latency_ms": latency_ms,
-                        "minute": self.minutes_billed,
-                        "response_size": len(response_text)
+                async with aiohttp.ClientSession() as session:
+                    headers = {
+                        "Content-Type": "application/json",
+                        "X-Internal-Secret": self.backend_shared_secret,
+                        "X-Request-ID": request_id
                     }
                     
-                    billing_logger.info(
-                        f"[WEBHOOK] Response received | {json.dumps(response_log)}"
+                    billing_logger.debug(
+                        f"[WEBHOOK] Sending POST | "
+                        f"request_id={request_id} | "
+                        f"retry_attempt={retry_attempt + 1}/{max_retries} | "
+                        f"headers={json.dumps({k: v if k != 'X-Internal-Secret' else 'REDACTED' for k, v in headers.items()})}"
                     )
                     
-                    if response.status == 200:
-                        try:
-                            result = json.loads(response_text)
-                            self.metrics.webhook_successes += 1
-                            self.last_webhook_response = result
-                            
-                            billing_logger.debug(
-                                f"[WEBHOOK] Success response | "
-                                f"request_id={request_id} | "
-                                f"data={json.dumps(result)}"
-                            )
-                            
-                            await self._emit_billing_event("webhook_success", {
-                                "request_id": request_id,
-                                "minute": self.minutes_billed,
-                                "latency_ms": latency_ms,
-                                "response": result
-                            })
-                            
-                            return result
-                            
-                        except json.JSONDecodeError as e:
-                            billing_logger.error(
-                                f"[WEBHOOK] Invalid JSON response | "
-                                f"request_id={request_id} | "
-                                f"error={str(e)} | "
-                                f"response={response_text[:500]}"
-                            )
-                            self.metrics.webhook_failures += 1
-                            return None
-                    else:
-                        self.metrics.webhook_failures += 1
+                    async with session.post(
+                        webhook_url,
+                        json=webhook_data,
+                        headers=headers,
+                        timeout=aiohttp.ClientTimeout(total=5)
+                    ) as response:
+                        latency_ms = (time.time() - start_time) * 1000
+                        response_text = await response.text()
                         
-                        billing_logger.error(
-                            f"[WEBHOOK] Failed | "
-                            f"request_id={request_id} | "
-                            f"status={response.status} | "
-                            f"response={response_text[:500]}"
-                        )
+                        # Update metrics
+                        self.metrics.total_latency_ms += latency_ms
+                        self.metrics.min_latency_ms = min(self.metrics.min_latency_ms, latency_ms)
+                        self.metrics.max_latency_ms = max(self.metrics.max_latency_ms, latency_ms)
+                        self.metrics.last_webhook_time = datetime.utcnow()
                         
-                        await self._emit_billing_event("webhook_error", {
+                        response_log = {
                             "request_id": request_id,
                             "status": response.status,
-                            "response": response_text[:500]
-                        })
+                            "latency_ms": latency_ms,
+                            "minute": self.minutes_billed,
+                            "response_size": len(response_text)
+                        }
                         
-                        return None
+                        billing_logger.info(
+                            f"[WEBHOOK] Response received | {json.dumps(response_log)}"
+                        )
                         
-        except asyncio.TimeoutError:
-            latency_ms = 5000  # Timeout was 5 seconds
-            self.metrics.webhook_failures += 1
-            
-            billing_logger.error(
-                f"[WEBHOOK] Timeout | "
-                f"request_id={request_id} | "
-                f"timeout_ms={latency_ms} | "
-                f"minute={self.minutes_billed}"
-            )
-            
-            await self._emit_billing_event("webhook_timeout", {
-                "request_id": request_id,
-                "minute": self.minutes_billed
-            })
-            
-            return None
-            
-        except Exception as e:
-            self.metrics.webhook_failures += 1
-            
-            billing_logger.error(
-                f"[WEBHOOK] Exception | "
-                f"request_id={request_id} | "
-                f"error={str(e)} | "
-                f"error_type={type(e).__name__}",
-                exc_info=True
-            )
-            
-            await self._emit_billing_event("webhook_exception", {
-                "request_id": request_id,
-                "error": str(e),
-                "error_type": type(e).__name__
-            })
-            
-            return None
+                        if response.status == 200:
+                            try:
+                                result = json.loads(response_text)
+                                self.metrics.webhook_successes += 1
+                                self.last_webhook_response = result
+                                
+                                billing_logger.debug(
+                                    f"[WEBHOOK] Success response | "
+                                    f"request_id={request_id} | "
+                                    f"data={json.dumps(result)}"
+                                )
+                                
+                                await self._emit_billing_event("webhook_success", {
+                                    "request_id": request_id,
+                                    "minute": self.minutes_billed,
+                                    "latency_ms": latency_ms,
+                                    "response": result
+                                })
+                                
+                                return result
+                                
+                            except json.JSONDecodeError as e:
+                                billing_logger.error(
+                                    f"[WEBHOOK] Invalid JSON response | "
+                                    f"request_id={request_id} | "
+                                    f"error={str(e)} | "
+                                    f"response={response_text[:500]}"
+                                )
+                                self.metrics.webhook_failures += 1
+                                return None
+                        else:
+                            self.metrics.webhook_failures += 1
+                            
+                            billing_logger.error(
+                                f"[WEBHOOK] Failed | "
+                                f"request_id={request_id} | "
+                                f"status={response.status} | "
+                                f"response={response_text[:500]}"
+                            )
+                            
+                            await self._emit_billing_event("webhook_error", {
+                                "request_id": request_id,
+                                "status": response.status,
+                                "response": response_text[:500]
+                            })
+                            
+                            return None
+                            
+            except aiohttp.ClientConnectorDNSError as e:
+                # DNS resolution failed - this is often transient
+                billing_logger.warning(
+                    f"[WEBHOOK] DNS resolution failed | "
+                    f"request_id={request_id} | "
+                    f"retry_attempt={retry_attempt + 1}/{max_retries} | "
+                    f"minute={self.minutes_billed} | "
+                    f"error={str(e)}"
+                )
+                
+                if retry_attempt < max_retries - 1:
+                    # Still have retries left
+                    billing_logger.info(
+                        f"[WEBHOOK] Retrying after DNS failure | "
+                        f"retry_in={retry_delay}s | "
+                        f"retry_attempt={retry_attempt + 2}/{max_retries}"
+                    )
+                    await asyncio.sleep(retry_delay)
+                    continue
+                else:
+                    # All retries exhausted - return safe default
+                    billing_logger.error(
+                        f"[WEBHOOK] DNS resolution failed after all retries | "
+                        f"request_id={request_id} | "
+                        f"continuing_conversation=true"
+                    )
+                    
+                    await self._emit_billing_event("webhook_dns_failure", {
+                        "request_id": request_id,
+                        "minute": self.minutes_billed,
+                        "retries_attempted": max_retries
+                    })
+                    
+                    # IMPORTANT: Return a safe response that keeps conversation going
+                    return {
+                        "status": "billing_unavailable",
+                        "creditsRemaining": 999,  # Assume credits available
+                        "shouldTerminate": False,  # DO NOT TERMINATE
+                        "message": "Billing service temporarily unavailable - continuing conversation"
+                    }
+                    
+            except asyncio.TimeoutError:
+                latency_ms = 5000  # Timeout was 5 seconds
+                self.metrics.webhook_failures += 1
+                
+                billing_logger.error(
+                    f"[WEBHOOK] Timeout | "
+                    f"request_id={request_id} | "
+                    f"timeout_ms={latency_ms} | "
+                    f"minute={self.minutes_billed}"
+                )
+                
+                if retry_attempt < max_retries - 1:
+                    billing_logger.info(f"[WEBHOOK] Retrying after timeout | retry_in={retry_delay}s")
+                    await asyncio.sleep(retry_delay)
+                    continue
+                
+                await self._emit_billing_event("webhook_timeout", {
+                    "request_id": request_id,
+                    "minute": self.minutes_billed
+                })
+                
+                # Return safe default for timeout
+                return {
+                    "status": "timeout",
+                    "creditsRemaining": 999,
+                    "shouldTerminate": False,
+                    "message": "Billing request timeout - continuing conversation"
+                }
+                
+            except Exception as e:
+                self.metrics.webhook_failures += 1
+                
+                billing_logger.error(
+                    f"[WEBHOOK] Exception | "
+                    f"request_id={request_id} | "
+                    f"error={str(e)} | "
+                    f"error_type={type(e).__name__}",
+                    exc_info=True
+                )
+                
+                await self._emit_billing_event("webhook_exception", {
+                    "request_id": request_id,
+                    "error": str(e),
+                    "error_type": type(e).__name__
+                })
+                
+                # For unexpected errors, also return safe default
+                return {
+                    "status": "error",
+                    "creditsRemaining": 999,
+                    "shouldTerminate": False,
+                    "message": f"Billing error: {type(e).__name__}"
+                }
+        
+        # Should not reach here, but if it does, return safe default
+        return {
+            "status": "fallback",
+            "creditsRemaining": 999,
+            "shouldTerminate": False,
+            "message": "Billing fallback - continuing conversation"
+        }
     
     async def _close_websocket(self, reason: str):
         """Close the WebSocket connection directly"""
@@ -649,6 +721,15 @@ class BillingProcessor(FrameProcessor):
     
     async def _handle_billing_response(self, response: dict):
         """Handle billing response with detailed logging"""
+        if not response:
+            # No response means critical failure - but don't terminate
+            billing_logger.warning(
+                f"[RESPONSE] No response received | "
+                f"conversation_id={self.conversation_id} | "
+                f"continuing_without_billing=true"
+            )
+            return
+            
         response_id = f"resp_{self.minutes_billed}_{int(time.time() * 1000)}"
         
         status = response.get("status")
@@ -656,6 +737,22 @@ class BillingProcessor(FrameProcessor):
         should_terminate = response.get("shouldTerminate", False)
         message = response.get("message")
         grace_period = response.get("gracePeriodSeconds")
+        
+        # Check if this is a fallback/error status
+        if status in ["billing_unavailable", "timeout", "error", "fallback"]:
+            billing_logger.warning(
+                f"[RESPONSE] Billing unavailable | "
+                f"response_id={response_id} | "
+                f"status={status} | "
+                f"message={message} | "
+                f"continuing_conversation=true"
+            )
+            await self._emit_billing_event("billing_unavailable", {
+                "response_id": response_id,
+                "status": status,
+                "message": message
+            })
+            return  # Don't process further, just continue conversation
         
         response_data = {
             "response_id": response_id,
@@ -773,8 +870,7 @@ class BillingProcessor(FrameProcessor):
                     f"task_name={task_name}"
                 )
         
-        # Calculate session duration - NO LONGER billing for partial minutes
-        # Since we bill immediately on start, we don't need to check for partial minutes
+        # Calculate session duration
         if self.start_time:
             elapsed = datetime.utcnow() - self.start_time
             total_seconds = elapsed.total_seconds()
@@ -807,26 +903,6 @@ class BillingProcessor(FrameProcessor):
             "total_minutes": self.minutes_billed,
             "metrics": final_metrics
         })
-    
-    async def _send_final_webhook(self, final_minute: int):
-        """Send final billing webhook"""
-        final_id = f"final_{int(time.time() * 1000)}"
-        
-        billing_logger.info(
-            f"[FINAL] Sending final webhook | "
-            f"final_id={final_id} | "
-            f"final_minute={final_minute} | "
-            f"previous_minutes={self.minutes_billed}"
-        )
-        
-        self.minutes_billed = final_minute
-        result = await self._send_billing_webhook()
-        
-        billing_logger.info(
-            f"[FINAL] Final webhook complete | "
-            f"final_id={final_id} | "
-            f"success={bool(result)}"
-        )
     
     async def cleanup(self):
         """Cleanup with comprehensive logging"""
