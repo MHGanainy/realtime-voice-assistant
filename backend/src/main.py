@@ -3,22 +3,29 @@ Voice Assistant API - Main Application with Logfire debugging
 """
 from pathlib import Path
 from dotenv import load_dotenv
-
+import sys
+# Load environment variables first
 env_path = Path(__file__).parent.parent / '.env'
 load_dotenv(env_path)
 
+# Initialize Logfire FIRST, before any other imports that use logging
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from src.services.logfire_service import get_logfire
+logfire_service = get_logfire()
+
+# Now import everything else
 from fastapi import FastAPI, WebSocket, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from typing import Optional
 import logging
-import sys
+
 import os
 from pathlib import Path
 from contextlib import asynccontextmanager
 import asyncio
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+
 
 from src.config.settings import get_settings
 from src.handlers.websocket_handler import get_websocket_handler
@@ -27,17 +34,20 @@ from src.services.conversation_manager import get_conversation_manager
 from src.services.transcript_storage import get_transcript_storage
 from src.events import get_event_bus, get_event_store
 from src.services.connection_monitor import get_connection_monitor
-from src.services.logfire_service import get_logfire
 
 import nltk; nltk.download('punkt_tab')
 
+# Configure logging AFTER Logfire is initialized
 settings = get_settings()
 logging.basicConfig(
     level=getattr(logging, settings.log_level),
-    format=settings.log_format
+    format=settings.log_format,
+    force=True  # Force reconfiguration to ensure our handler is included
 )
-logger = logging.getLogger(__name__)
 
+# Get logger after everything is configured
+logger = logging.getLogger(__name__)
+logger.info("Application starting with full Logfire integration")
 
 async def periodic_transcript_cleanup():
     """Run transcript cleanup every hour"""
@@ -55,7 +65,7 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager with Logfire and monitoring"""
     logger.info(f"Starting {settings.app_name} v{settings.app_version}")
     
-    # Initialize Logfire
+    # Log startup with Logfire
     logfire = get_logfire()
     logfire.log_connection_event(
         connection_id="system",
@@ -170,11 +180,12 @@ async def root():
         "version": settings.app_version,
         "description": "Realtime voice conversation with AI assistant",
         "monitoring": {
-            "logfire_enabled": bool(os.getenv('LOGFIRE_TOKEN')),  # Fixed this line
+            "logfire_enabled": bool(os.getenv('LOGFIRE_TOKEN')),
             "connection_monitor": monitor_stats
         },
         "endpoints": {
             "health": "/api/health",
+            "test_logging": "/api/test-logging",  # Added test endpoint
             "websocket": "/ws/conversation",
             "events": "/ws/events",
             "conversations": {
@@ -232,8 +243,58 @@ async def health_check():
     }
 
 
+@app.get("/api/test-logging")
+async def test_logging():
+    """Test that all log levels go to Logfire"""
+    import logfire
+    
+    # Test Python logging at all levels
+    logger.debug("Test DEBUG message from main app")
+    logger.info("Test INFO message from main app")
+    logger.warning("Test WARNING message from main app")
+    logger.error("Test ERROR message from main app")
+    
+    # Test different module loggers
+    test_logger = logging.getLogger("test.module")
+    test_logger.info("Test from test.module logger")
+    
+    src_logger = logging.getLogger("src.test")
+    src_logger.info("Test from src.test logger")
+    
+    pipecat_logger = logging.getLogger("pipecat.test")
+    pipecat_logger.info("Test from pipecat.test logger")
+    
+    billing_logger = logging.getLogger("billing")
+    billing_logger.info("Test from billing logger")
+    
+    # Test direct Logfire calls
+    logfire.debug("Direct Logfire DEBUG test")
+    logfire.info("Direct Logfire INFO test")
+    logfire.warn("Direct Logfire WARN test")
+    logfire.error("Direct Logfire ERROR test")
+    
+    # Test with extra data
+    logger.info("Test with extra data", extra={
+        "user_id": "test_123",
+        "action": "test_logging",
+        "metadata": {"foo": "bar"}
+    })
+    
+    # Test exception logging
+    try:
+        raise ValueError("Test exception for Logfire")
+    except ValueError as e:
+        logger.error("Test exception logging", exc_info=True)
+    
+    return {
+        "message": "Logging test complete - check Logfire dashboard",
+        "logfire_enabled": bool(os.getenv('LOGFIRE_TOKEN')),
+        "test_completed_at": asyncio.get_event_loop().time()
+    }
+
+
 # ... rest of your endpoints remain exactly the same ...
-# (I'm keeping the rest of the file identical to avoid confusion)
+# (keeping all the existing endpoints from your original file)
 
 @app.websocket("/ws/conversation")
 async def websocket_conversation(

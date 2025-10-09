@@ -7,6 +7,7 @@ import os
 from datetime import datetime
 import asyncio
 from contextlib import contextmanager, asynccontextmanager
+import logging
 
 class LogfireService:
     """Centralized Logfire logging service focused on connection debugging"""
@@ -29,12 +30,8 @@ class LogfireService:
         # Get token from environment
         token = os.getenv('LOGFIRE_TOKEN')
         
-        # Check if console logging should be enabled (default: True)
-        console_enabled = os.getenv('LOGFIRE_CONSOLE', 'true').lower() == 'true'
-        
         if token:
             # Production mode with token
-            # Use simple configuration without console parameter to avoid compatibility issues
             logfire.configure(
                 token=token,
                 service_name="voice-agent",
@@ -55,15 +52,27 @@ class LogfireService:
         
         logfire.info("🚀 Logfire service initialized for disconnection debugging")
         
-        # ===== BRIDGE PYTHON LOGGING TO LOGFIRE =====
-        # This captures ALL Python logs and sends them to Logfire
-        import logging
-        
+        # ===== COMPREHENSIVE PYTHON LOGGING BRIDGE =====
+        self._setup_comprehensive_logging_bridge()
+    
+    def _setup_comprehensive_logging_bridge(self):
+        """Setup comprehensive logging bridge to capture ALL Python logs"""
         try:
-            # Simple approach: Add a custom handler that sends to logfire
             class LogfireHandler(logging.Handler):
+                """Custom handler that sends all logs to Logfire"""
+                
                 def emit(self, record):
-                    # Send Python logs to Logfire
+                    # Skip logfire's own logs to avoid recursion
+                    if record.name.startswith('logfire'):
+                        return
+                    
+                    # Skip certain noisy loggers if needed
+                    skip_loggers = ['urllib3.connectionpool', 'asyncio']
+                    if any(record.name.startswith(skip) for skip in skip_loggers):
+                        if record.levelno < logging.WARNING:
+                            return
+                    
+                    # Map Python log levels to Logfire functions
                     level_map = {
                         logging.DEBUG: logfire.debug,
                         logging.INFO: logfire.info,
@@ -74,38 +83,94 @@ class LogfireService:
                     log_func = level_map.get(record.levelno, logfire.info)
                     
                     # Format the message
-                    msg = self.format(record)
+                    try:
+                        msg = self.format(record)
+                    except Exception:
+                        msg = record.getMessage()
                     
-                    # Log to Logfire with metadata
-                    log_func(
-                        f"logging.{record.name}",
-                        message=msg,
-                        logger_name=record.name,
-                        level=record.levelname,
-                        pathname=record.pathname,
-                        lineno=record.lineno,
-                        funcname=record.funcName
-                    )
+                    # Prepare extra data
+                    extra_data = {
+                        'logger_name': record.name,
+                        'level': record.levelname,
+                        'pathname': record.pathname,
+                        'lineno': record.lineno,
+                        'funcname': record.funcName,
+                        'module': record.module,
+                        'thread': record.thread,
+                        'thread_name': record.threadName,
+                    }
+                    
+                    # Add exception info if present
+                    if record.exc_info:
+                        import traceback
+                        extra_data['exc_info'] = ''.join(traceback.format_exception(*record.exc_info))
+                    
+                    # Log to Logfire with full context
+                    try:
+                        log_func(
+                            f"python.{record.name}",
+                            message=msg,
+                            **extra_data
+                        )
+                    except Exception as e:
+                        # Fallback to print if Logfire fails
+                        print(f"Failed to log to Logfire: {e} - Original message: {msg}")
             
-            # Create and configure our handler
+            # Create handler with formatter
             handler = LogfireHandler()
             handler.setLevel(logging.DEBUG)
             handler.setFormatter(logging.Formatter('%(message)s'))
             
-            # Add to specific loggers to avoid infinite loops
-            for logger_name in ["billing", "src", "pipecat"]:
-                logger = logging.getLogger(logger_name)
-                logger.addHandler(handler)
-                logger.setLevel(logging.DEBUG)
+            # Get root logger
+            root_logger = logging.getLogger()
             
-            print("✅ Python logging bridged to Logfire")
+            # Check if we already have a LogfireHandler to avoid duplicates
+            has_logfire_handler = any(
+                isinstance(h, LogfireHandler) 
+                for h in root_logger.handlers
+            )
+            
+            if not has_logfire_handler:
+                # Add our Logfire handler to root logger
+                root_logger.addHandler(handler)
+                
+                # Set root logger level to DEBUG to capture everything
+                if root_logger.level > logging.DEBUG:
+                    root_logger.setLevel(logging.DEBUG)
+            
+            # Configure specific loggers
+            loggers_to_configure = [
+                "src",
+                "pipecat", 
+                "billing",
+                "uvicorn",
+                "fastapi",
+                "aiohttp",
+                "httpx",
+                "websockets"
+            ]
+            
+            for logger_name in loggers_to_configure:
+                specific_logger = logging.getLogger(logger_name)
+                # Ensure they propagate to root
+                specific_logger.propagate = True
+                # Set their level to DEBUG
+                if specific_logger.level > logging.DEBUG:
+                    specific_logger.setLevel(logging.DEBUG)
+            
+            print("✅ Python logging fully bridged to Logfire")
+            logfire.info(
+                "Python logging integration complete", 
+                root_logger_configured=True,
+                root_logger_level=logging.getLevelName(root_logger.level),
+                handlers_count=len(root_logger.handlers),
+                configured_loggers=loggers_to_configure
+            )
             
         except Exception as e:
             print(f"⚠️ Could not bridge Python logging to Logfire: {e}")
-        
-        # Log that initialization is complete
-        logfire.info("Python logging integration complete", 
-                    loggers_configured=["billing", "pipecat", "src"])
+            import traceback
+            traceback.print_exc()
     
     @contextmanager
     def track_connection(self, connection_id: str, session_id: str, 
