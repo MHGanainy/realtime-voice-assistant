@@ -460,12 +460,11 @@ class WebSocketConnectionHandler:
                     await websocket.close(code=1011, reason="Failed to start conversation")
                     return
                 
-                # Create pipeline task - UPDATE THIS SECTION
+                # Create pipeline task
                 task = self.pipeline_factory.create_pipeline_task(
                     pipeline=pipeline,
                     config=config,
-                    output_sample_rate=output_sample_rate,
-                    conversation_id=conversation.id  # ADD THIS PARAMETER
+                    output_sample_rate=output_sample_rate
                 )
                 
                 self.logfire.log_pipeline_event(

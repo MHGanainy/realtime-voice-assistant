@@ -262,8 +262,7 @@ class PipelineFactory:
         self,
         pipeline: Pipeline,
         config: ConversationConfig,
-        output_sample_rate: int,
-        conversation_id: Optional[str] = None  # Add conversation_id parameter
+        output_sample_rate: int
     ) -> PipelineTask:
         """Create a pipeline task with appropriate parameters"""
         vad_analyzer = None
@@ -286,35 +285,7 @@ class PipelineFactory:
                 if hasattr(params, key):
                     setattr(params, key, value)
         
-        # Get idle timeout configuration from settings or use sensible defaults
-        # for medical simulation
-        idle_timeout_secs = getattr(self._settings, 'idle_timeout_secs', 1800)  # Default 30 minutes
-        cancel_on_idle_timeout = getattr(self._settings, 'cancel_on_idle_timeout', False)
-        
-        # Create the PipelineTask with idle timeout configuration
-        task = PipelineTask(
-            pipeline, 
-            params=params,
-            conversation_id=conversation_id,
-            # Idle timeout configuration for medical simulation
-            idle_timeout_secs=idle_timeout_secs,  # 30 minutes default
-            cancel_on_idle_timeout=cancel_on_idle_timeout,  # Don't auto-cancel
-            # You can also customize which frames reset the idle timer
-            # idle_timeout_frames=(BotSpeakingFrame, UserSpeakingFrame, TranscriptionFrame)
-        )
-        
-        # Optionally set up an idle timeout handler
-        @task.event_handler("on_idle_timeout")
-        async def handle_idle_timeout(task):
-            """Handle idle timeout - log but don't cancel automatically"""
-            logger.warning(
-                f"Conversation {conversation_id} has been idle for {idle_timeout_secs} seconds. "
-                f"Consider prompting the user or ending the conversation."
-            )
-            # You could inject a prompt here if needed:
-            # await task.queue_frame(TextFrame(text="Are you still there?"))
-        
-        return task
+        return PipelineTask(pipeline, params=params)
 
 
 _pipeline_factory: Optional[PipelineFactory] = None
