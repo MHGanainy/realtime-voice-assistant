@@ -733,6 +733,106 @@ class WebSocketConnectionHandler:
             await session.close()
         self._aiohttp_sessions.clear()
 
+    async def close_connection_by_correlation(self, correlation_token: str) -> int:
+        """
+        Close all connections associated with a correlation token
+        Returns the number of connections closed
+        """
+        connections_closed = 0
+        connections_to_close = []
+        
+        logger.info(f"[FORCE_CLOSE] Searching for connections with correlation token: {correlation_token}")
+        
+        # Find all connections with this correlation token
+        for connection_id, conn_info in self._active_connections.items():
+            if conn_info.get("correlation_token") == correlation_token:
+                connections_to_close.append(connection_id)
+                logger.info(f"[FORCE_CLOSE] Found connection to close: {connection_id}")
+        
+        # Close each connection
+        for connection_id in connections_to_close:
+            try:
+                conn_info = self._active_connections.get(connection_id)
+                if conn_info:
+                    websocket = conn_info["websocket"]
+                    conversation = conn_info["conversation"]
+                    pipeline = conn_info.get("pipeline")
+                    
+                    # CRITICAL: Stop the billing processor FIRST
+                    if pipeline and hasattr(pipeline, 'processors'):
+                        logger.info(f"[FORCE_CLOSE] Checking pipeline processors for billing processor")
+                        for processor in pipeline.processors:
+                            # Check if this is a BillingProcessor
+                            if hasattr(processor, '__class__') and processor.__class__.__name__ == 'BillingProcessor':
+                                logger.info(
+                                    f"[FORCE_CLOSE] Found BillingProcessor, stopping billing for {correlation_token}"
+                                )
+                                # Call the public stop_billing method
+                                if hasattr(processor, 'stop_billing'):
+                                    await processor.stop_billing("api_force_close")
+                                    logger.info(
+                                        f"[FORCE_CLOSE] BillingProcessor stopped for {correlation_token}"
+                                    )
+                                else:
+                                    # Fallback to _stop_billing if stop_billing doesn't exist
+                                    await processor._stop_billing("api_force_close")
+                                    logger.info(
+                                        f"[FORCE_CLOSE] BillingProcessor stopped (using _stop_billing) for {correlation_token}"
+                                    )
+                    else:
+                        logger.warning(f"[FORCE_CLOSE] No pipeline or processors found for {connection_id}")
+                    
+                    # Log the forced closure
+                    self.logfire.log_connection_event(
+                        connection_id=connection_id,
+                        event="force_closed_by_backend",
+                        correlation_token=correlation_token,
+                        attempt_id=conn_info.get("attempt_id"),
+                        student_id=conn_info.get("student_id"),
+                        reason="simulation_ended_by_backend"
+                    )
+                    
+                    # Send termination message to client
+                    try:
+                        await websocket.send_json({
+                            "type": "session_terminated",
+                            "reason": "simulation_ended",
+                            "message": "Your simulation session has been ended by the system",
+                            "timestamp": datetime.utcnow().isoformat()
+                        })
+                        logger.info(f"[FORCE_CLOSE] Sent termination message to client")
+                    except Exception as e:
+                        logger.debug(f"[FORCE_CLOSE] Could not send termination message: {e}")
+                    
+                    # Close the WebSocket
+                    try:
+                        await websocket.close(code=1000, reason="Simulation ended by system")
+                        logger.info(f"[FORCE_CLOSE] WebSocket closed")
+                    except Exception as e:
+                        logger.error(f"[FORCE_CLOSE] Error closing WebSocket: {e}")
+                    
+                    # Cleanup the connection
+                    await self._cleanup_connection(connection_id)
+                    connections_closed += 1
+                    
+                    logger.info(f"[FORCE_CLOSE] Successfully closed connection {connection_id} for correlation token {correlation_token}")
+                    
+            except Exception as e:
+                logger.error(f"[FORCE_CLOSE] Error closing connection {connection_id}: {e}", exc_info=True)
+        
+        if connections_closed == 0:
+            logger.warning(f"[FORCE_CLOSE] No active connections found for correlation token {correlation_token}")
+        
+        # Also check monitor for any connections we might have missed
+        monitor = self.monitor
+        monitor_connections = monitor.get_all_connections()
+        for conn_id, conn_info in monitor_connections.items():
+            if conn_info.metadata.get("correlation_token") == correlation_token:
+                logger.info(f"[FORCE_CLOSE] Removing connection {conn_id} from monitor")
+                monitor.remove_connection(conn_id)
+        
+        logger.info(f"[FORCE_CLOSE] Closed {connections_closed} connection(s) for correlation token {correlation_token}")
+        return connections_closed
 
 _websocket_handler: Optional[WebSocketConnectionHandler] = None
 

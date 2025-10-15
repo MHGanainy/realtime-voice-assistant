@@ -14,7 +14,7 @@ from src.services.logfire_service import get_logfire
 logfire_service = get_logfire()
 
 # Now import everything else
-from fastapi import FastAPI, WebSocket, Query, HTTPException
+from fastapi import FastAPI, WebSocket, Query, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from typing import Optional
@@ -24,8 +24,6 @@ import os
 from pathlib import Path
 from contextlib import asynccontextmanager
 import asyncio
-
-
 
 from src.config.settings import get_settings
 from src.handlers.websocket_handler import get_websocket_handler
@@ -185,7 +183,7 @@ async def root():
         },
         "endpoints": {
             "health": "/api/health",
-            "test_logging": "/api/test-logging",  # Added test endpoint
+            "test_logging": "/api/test-logging",
             "websocket": "/ws/conversation",
             "events": "/ws/events",
             "conversations": {
@@ -201,6 +199,9 @@ async def root():
                 "by_correlation": "/api/transcripts/correlation/{correlation_token}",
                 "by_session": "/api/transcripts/session/{session_id}",
                 "by_conversation": "/api/transcripts/conversation/{conversation_id}"
+            },
+            "connections": {
+                "close_by_correlation": "/api/connections/{correlation_token}/close"
             }
         }
     }
@@ -293,8 +294,47 @@ async def test_logging():
     }
 
 
-# ... rest of your endpoints remain exactly the same ...
-# (keeping all the existing endpoints from your original file)
+# NEW ENDPOINT: Force close connection by correlation token
+@app.post("/api/connections/{correlation_token}/close")
+async def close_connection_by_correlation(
+    correlation_token: str,
+    authorization: str = Header(None)
+):
+    """Force close a WebSocket connection by correlation token"""
+    
+    logger.info(f"Backend requested to close connection for correlation token: {correlation_token}")
+    
+    # Call the method on the websocket_handler instance
+    connections_closed = await websocket_handler.close_connection_by_correlation(correlation_token)
+    
+    # Also check conversation manager for any active conversations
+    all_conversations = conversation_manager.get_all_conversations()
+    for conv_id, conv in all_conversations.items():
+        if conv.participant.metadata.get("correlation_token") == correlation_token:
+            logger.info(f"Also ending conversation {conv_id} for correlation token {correlation_token}")
+            await conversation_manager.end_conversation(conv_id, error="Closed by backend request")
+    
+    # Check transcript storage
+    transcript = await transcript_storage.get_transcript_by_correlation(correlation_token)
+    if transcript and not transcript.ended_at:
+        await transcript_storage.end_transcript(transcript.conversation_id)
+    
+    if connections_closed > 0:
+        logger.info(f"Successfully closed {connections_closed} connection(s) for correlation token: {correlation_token}")
+        return {
+            "status": "success",
+            "message": f"Closed {connections_closed} connection(s)",
+            "correlation_token": correlation_token,
+            "timestamp": asyncio.get_event_loop().time()
+        }
+    else:
+        logger.warning(f"No active connections found for correlation token: {correlation_token}")
+        return {
+            "status": "not_found",
+            "message": "No active connections found",
+            "correlation_token": correlation_token,
+            "timestamp": asyncio.get_event_loop().time()
+        }
 
 @app.websocket("/ws/conversation")
 async def websocket_conversation(

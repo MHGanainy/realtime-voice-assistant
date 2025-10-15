@@ -120,6 +120,9 @@ class BillingProcessor(FrameProcessor):
         self._active = False
         self._first_audio_received = False
         
+        # Add a stop event for clean shutdown
+        self._stop_event = asyncio.Event()
+        
         # Metrics
         self.metrics = BillingMetrics()
         self.last_webhook_response = None
@@ -228,7 +231,7 @@ class BillingProcessor(FrameProcessor):
                 "state": self.state.value
             })
             
-            await self._stop_billing("end_frame_received")
+            await self.stop_billing("end_frame_received")
         
         # Always pass frame through
         await self.push_frame(frame, direction)
@@ -246,6 +249,7 @@ class BillingProcessor(FrameProcessor):
         try:
             self._transition_state(BillingState.ACTIVE, "billing_started")
             self._active = True
+            self._stop_event.clear()  # Clear the stop event
             self.start_time = datetime.utcnow()
             
             # IMMEDIATELY BILL THE FIRST MINUTE
@@ -331,7 +335,7 @@ class BillingProcessor(FrameProcessor):
         iteration = 0
         
         try:
-            while self._active:
+            while self._active and not self._stop_event.is_set():
                 iteration += 1
                 loop_start = time.time()
                 
@@ -342,10 +346,20 @@ class BillingProcessor(FrameProcessor):
                     f"waiting_60s=true"
                 )
                 
-                # Wait for 1 minute
-                await asyncio.sleep(60)
+                # Wait for 1 minute, but check stop event every second
+                for _ in range(60):
+                    if self._stop_event.is_set() or not self._active:
+                        billing_logger.info(
+                            f"[LOOP] Stop requested during wait | "
+                            f"loop_id={loop_id} | "
+                            f"iteration={iteration} | "
+                            f"stop_event={self._stop_event.is_set()} | "
+                            f"active={self._active}"
+                        )
+                        return
+                    await asyncio.sleep(1)
                 
-                if not self._active:
+                if not self._active or self._stop_event.is_set():
                     billing_logger.info(
                         f"[LOOP] Deactivated during wait | "
                         f"loop_id={loop_id} | "
@@ -817,7 +831,7 @@ class BillingProcessor(FrameProcessor):
                 "final_message": message
             })
             
-            await self._stop_billing("insufficient_credits")
+            await self.stop_billing("insufficient_credits")
             
             # CLOSE WEBSOCKET BEFORE SENDING END FRAME
             await self._close_websocket(message)
@@ -828,13 +842,17 @@ class BillingProcessor(FrameProcessor):
             )
             await self.push_frame(EndFrame(), FrameDirection.DOWNSTREAM)
     
+    async def stop_billing(self, reason: str = "normal"):
+        """Stop billing with detailed logging and metrics - PUBLIC METHOD for external calls"""
+        await self._stop_billing(reason)
+    
     async def _stop_billing(self, reason: str = "normal"):
-        """Stop billing with detailed logging and metrics"""
+        """Internal stop billing implementation"""
         stop_id = f"stop_{int(time.time() * 1000)}"
         
-        if not self._active:
+        if not self._active and self.state == BillingState.STOPPED:
             billing_logger.debug(
-                f"[STOP] Already inactive | "
+                f"[STOP] Already stopped | "
                 f"stop_id={stop_id} | "
                 f"state={self.state.value}"
             )
@@ -850,6 +868,7 @@ class BillingProcessor(FrameProcessor):
         
         self._transition_state(BillingState.STOPPING, f"stop_requested: {reason}")
         self._active = False
+        self._stop_event.set()  # Signal the billing loop to stop
         
         # Cancel billing task
         if self._billing_task:
@@ -915,7 +934,7 @@ class BillingProcessor(FrameProcessor):
             f"state={self.state.value}"
         )
         
-        await self._stop_billing("cleanup")
+        await self.stop_billing("cleanup")
         await super().cleanup()
         
         billing_logger.info(

@@ -173,6 +173,8 @@ class ConnectionMonitor:
             )
             return False
     
+    # In src/services/connection_monitor.py, modify the _monitor_loop method:
+
     async def _monitor_loop(self):
         """Main monitoring loop"""
         logger.info("Connection monitor loop started")
@@ -233,9 +235,25 @@ class ConnectionMonitor:
                             context="monitor_check"
                         )
                 
-                # Remove dead connections
+                # CRITICAL: Actually close dead connections, not just remove them
                 for conn_id in dead_connections:
-                    logger.warning(f"Removing dead connection: {conn_id}")
+                    logger.warning(f"Dead connection detected: {conn_id}")
+                    conn_info = self._connections.get(conn_id)
+                    
+                    if conn_info and conn_info.metadata.get("correlation_token"):
+                        correlation_token = conn_info.metadata["correlation_token"]
+                        logger.warning(f"Triggering force close for dead connection with correlation: {correlation_token}")
+                        
+                        # Import and call the websocket handler to properly close the connection
+                        try:
+                            from src.handlers.websocket_handler import get_websocket_handler
+                            ws_handler = get_websocket_handler()
+                            closed = await ws_handler.close_connection_by_correlation(correlation_token)
+                            logger.info(f"Force closed {closed} connection(s) for dead correlation token: {correlation_token}")
+                        except Exception as e:
+                            logger.error(f"Failed to force close dead connection: {e}")
+                    
+                    # Remove from monitoring after closing
                     self.remove_connection(conn_id)
                 
                 # Log monitoring stats
@@ -255,7 +273,6 @@ class ConnectionMonitor:
                     error=e,
                     context="monitor_loop"
                 )
-    
     def get_connection_info(self, connection_id: str) -> Optional[ConnectionInfo]:
         """Get information about a specific connection"""
         return self._connections.get(connection_id)
