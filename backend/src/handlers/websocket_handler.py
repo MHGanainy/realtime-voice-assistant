@@ -10,6 +10,7 @@ import uuid
 import aiohttp
 import os
 import jwt  # Added for JWT decoding
+import json
 
 from src.domains.conversation import Participant, ConversationConfig
 from src.services.conversation_manager import get_conversation_manager
@@ -50,6 +51,9 @@ class WebSocketConnectionHandler:
         self._active_connections: Dict[str, Dict[str, Any]] = {}
         self._aiohttp_sessions: Dict[str, aiohttp.ClientSession] = {}
         
+        # Add connection-specific lock for thread safety
+        self._connections_lock = asyncio.Lock()
+        
         # Add Logfire and monitoring
         self.logfire = get_logfire()
         self.monitor = get_connection_monitor()
@@ -59,7 +63,6 @@ class WebSocketConnectionHandler:
         if self.AUTH_DEV_MODE:
             logger.warning("⚠️ AUTH DEV MODE ENABLED - Token validation bypassed!")
         # ===== END DEV MODE CONFIGURATION =====
-    
     async def handle_connection(
         self,
         websocket: WebSocket,
@@ -142,10 +145,20 @@ class WebSocketConnectionHandler:
             try:
                 # Accept WebSocket connection
                 await websocket.accept()
+                websocket._connection_id = connection_id  # Store ID on WebSocket object
+
+                # Log client details to identify if it's the same client
+                client_info = {
+                    "connection_id": connection_id,
+                    "client_host": websocket.client.host if websocket.client else None,
+                    "client_port": websocket.client.port if websocket.client else None,
+                    "headers": dict(websocket.headers),
+                }
+                logger.info(f"[DEBUG] WebSocket client info: {json.dumps(client_info)}")
                 
                 # Filter out duplicate keys from jwt_data before using it
                 jwt_data_clean = {k: v for k, v in jwt_data.items() 
-                                 if k not in ['attempt_id', 'student_id']}
+                                if k not in ['attempt_id', 'student_id']}
                 
                 # Log initial connection with JWT data
                 self.logfire.log_connection_event(
@@ -156,33 +169,11 @@ class WebSocketConnectionHandler:
                     client_ip=websocket.client.host if websocket.client else None,
                     user_agent=websocket.headers.get("user-agent"),
                     query_params=dict(websocket.query_params),
-                    **jwt_data_clean  # Use cleaned jwt_data
+                    **jwt_data_clean
                 )
                 
                 logger.info(f"WebSocket connection established: {connection_id}")
                 logger.info(f"Session identifiers - attempt: {attempt_id}, student: {student_id}")
-                
-                # Add to connection monitor with JWT context
-                self.monitor.add_connection(
-                    connection_id=connection_id,
-                    websocket=websocket,
-                    session_id=session_id,
-                    correlation_token=correlation_token,
-                    attempt_id=attempt_id,
-                    student_id=student_id,
-                    client_ip=websocket.client.host if websocket.client else None,
-                    **jwt_data_clean  # Use cleaned jwt_data
-                )
-                
-                # Check token expiration
-                if jwt_data.get('token_expires_in') and jwt_data['token_expires_in'] < 60:
-                    self.logfire.log_connection_event(
-                        connection_id=connection_id,
-                        event="token_expiring_soon",
-                        attempt_id=attempt_id,
-                        student_id=student_id,
-                        expires_in_seconds=jwt_data['token_expires_in']
-                    )
                 
                 # ===== AUTHENTICATION START =====
                 authenticated_data = {}
@@ -258,7 +249,7 @@ class WebSocketConnectionHandler:
                     
                     # Merge JWT data with auth data
                     authenticated_data = {
-                        **jwt_data_clean,  # Include cleaned JWT data
+                        **jwt_data_clean,
                         'authenticated': True,
                         'auth_method': 'jwt',
                         'actual_correlation': correlation_token
@@ -267,19 +258,48 @@ class WebSocketConnectionHandler:
                     logger.info(f"Authenticated connection: {session_id} with correlation: {correlation_token}")
                     
                 else:
-                    # DEV MODE
+                    # ===== CRITICAL FIX: Ensure unique correlation tokens in DEV MODE =====
                     if not correlation_token:
-                        correlation_token = f"dev_token_{datetime.utcnow().timestamp()}"
-                        logger.info(f"[DEV MODE] Generated correlation token: {correlation_token}")
+                        # Include connection_id to ensure uniqueness
+                        correlation_token = f"dev_token_{connection_id}_{datetime.utcnow().timestamp()}"
+                        logger.info(f"[DEV MODE] Generated unique correlation token: {correlation_token}")
+                    else:
+                        # Even if provided in dev mode, make it unique by appending connection_id
+                        # This prevents two dev connections with same token from interfering
+                        original_token = correlation_token
+                        correlation_token = f"{correlation_token}_{connection_id}"
+                        logger.info(f"[DEV MODE] Made correlation token unique: {original_token} -> {correlation_token}")
                     
                     authenticated_data = {
-                        **jwt_data_clean,  # Include cleaned JWT data even in dev mode
+                        **jwt_data_clean,
                         'authenticated': True,
                         'auth_method': 'dev_mode',
                         'dev_mode': True
                     }
                     logger.info(f"[DEV MODE] Accepting connection: {connection_id} with correlation: {correlation_token}")
                 # ===== AUTHENTICATION END =====
+                
+                # Add to connection monitor with JWT context
+                self.monitor.add_connection(
+                    connection_id=connection_id,
+                    websocket=websocket,
+                    session_id=session_id,
+                    correlation_token=correlation_token,
+                    attempt_id=attempt_id,
+                    student_id=student_id,
+                    client_ip=websocket.client.host if websocket.client else None,
+                    **jwt_data_clean
+                )
+                
+                # Check token expiration
+                if jwt_data.get('token_expires_in') and jwt_data['token_expires_in'] < 60:
+                    self.logfire.log_connection_event(
+                        connection_id=connection_id,
+                        event="token_expiring_soon",
+                        attempt_id=attempt_id,
+                        student_id=student_id,
+                        expires_in_seconds=jwt_data['token_expires_in']
+                    )
                 
                 # Extract opening line parameter
                 opening_line = websocket.query_params.get("opening_line")
@@ -295,7 +315,7 @@ class WebSocketConnectionHandler:
                 
                 # Filter authenticated_data to avoid duplicates
                 authenticated_data_clean = {k: v for k, v in authenticated_data.items() 
-                                          if k not in ['attempt_id', 'student_id']}
+                                        if k not in ['attempt_id', 'student_id']}
                 
                 # Emit connection established event with JWT context
                 await self._event_bus.emit(
@@ -309,7 +329,7 @@ class WebSocketConnectionHandler:
                     has_opening_line=bool(opening_line),
                     client_ip=websocket.client.host if websocket.client else None,
                     user_agent=websocket.headers.get("user-agent"),
-                    **authenticated_data_clean  # Use cleaned authenticated_data
+                    **authenticated_data_clean
                 )
                 
                 # Create participant with JWT metadata
@@ -325,8 +345,8 @@ class WebSocketConnectionHandler:
                         "student_id": student_id,
                         "opening_line": opening_line,
                         "has_opening_line": bool(opening_line),
-                        "jwt_data": jwt_data_clean,  # Use cleaned jwt_data
-                        **authenticated_data_clean  # Use cleaned authenticated_data
+                        "jwt_data": jwt_data_clean,
+                        **authenticated_data_clean
                     }
                 )
                 
@@ -389,9 +409,19 @@ class WebSocketConnectionHandler:
                     metadata=metadata_update
                 )
                 
-                # Create aiohttp session
-                aiohttp_session = aiohttp.ClientSession()
-                self._aiohttp_sessions[connection_id] = aiohttp_session
+                # ===== CRITICAL FIX: Create isolated aiohttp session =====
+                aiohttp_session = aiohttp.ClientSession(
+                    connector=aiohttp.TCPConnector(
+                        force_close=True,
+                        enable_cleanup_closed=True,
+                        limit=10,  # Limit total connections for this session
+                        limit_per_host=5  # Limit per host for this session
+                    )
+                )
+                
+                # Store with lock to prevent race conditions
+                async with self._connections_lock:
+                    self._aiohttp_sessions[connection_id] = aiohttp_session
                 
                 # Create transport
                 transport = self._create_transport(websocket, config)
@@ -424,23 +454,25 @@ class WebSocketConnectionHandler:
                     output_sample_rate=output_sample_rate
                 )
                 
-                # Store connection info with JWT data
-                self._active_connections[connection_id] = {
-                    "websocket": websocket,
-                    "participant": participant,
-                    "conversation": conversation,
-                    "transport": transport,
-                    "pipeline": pipeline,
-                    "aiohttp_session": aiohttp_session,
-                    "connected_at": datetime.utcnow(),
-                    "processors_enabled": enable_processors,
-                    "correlation_token": correlation_token,
-                    "attempt_id": attempt_id,
-                    "student_id": student_id,
-                    "opening_line": opening_line,
-                    "has_opening_line": bool(opening_line),
-                    **authenticated_data_clean  # Use cleaned authenticated_data
-                }
+                # Store connection info with lock and cleanup flag
+                async with self._connections_lock:
+                    self._active_connections[connection_id] = {
+                        "websocket": websocket,
+                        "participant": participant,
+                        "conversation": conversation,
+                        "transport": transport,
+                        "pipeline": pipeline,
+                        "aiohttp_session": aiohttp_session,
+                        "connected_at": datetime.utcnow(),
+                        "processors_enabled": enable_processors,
+                        "correlation_token": correlation_token,
+                        "attempt_id": attempt_id,
+                        "student_id": student_id,
+                        "opening_line": opening_line,
+                        "has_opening_line": bool(opening_line),
+                        "cleanup_in_progress": False,  # Add flag to prevent double cleanup
+                        **authenticated_data_clean
+                    }
                 
                 # Start conversation
                 success = await self.conversation_manager.start_conversation(
@@ -539,38 +571,38 @@ class WebSocketConnectionHandler:
                 await self._handle_error(connection_id, e)
                 
             finally:
-                # Remove from monitor
-                conn_info = self.monitor.remove_connection(connection_id)
+                # ===== CRITICAL: Proper cleanup with isolation =====
+                # Mark connection for cleanup to prevent monitor from interfering
+                self.monitor.mark_connection_for_closure(connection_id)
                 
-                # Log final stats with JWT context
-                if connection_id in self._active_connections:
-                    conn_data = self._active_connections[connection_id]
-                    duration = (datetime.utcnow() - conn_data.get('connected_at', datetime.utcnow())).total_seconds()
-                    
-                    self.logfire.log_connection_event(
-                        connection_id=connection_id,
-                        event="closed",
-                        attempt_id=conn_data.get('attempt_id'),
-                        student_id=conn_data.get('student_id'),
-                        duration_seconds=duration,
-                        had_opening_line=conn_data.get('has_opening_line', False)
-                    )
-                    
-                    if conn_info:
-                        self.logfire.log_metrics(
-                            connection_id=connection_id,
-                            metric_type="final_stats",
-                            attempt_id=conn_data.get('attempt_id'),
-                            student_id=conn_data.get('student_id'),
-                            total_duration=duration,
-                            ping_failures=conn_info.ping_failures,
-                            total_pings=conn_info.total_pings,
-                            final_inactive_seconds=conn_info.inactive_seconds
-                        )
+                # Clean up aiohttp session for THIS connection only
+                async with self._connections_lock:
+                    if connection_id in self._aiohttp_sessions:
+                        try:
+                            session = self._aiohttp_sessions[connection_id]
+                            await session.close()
+                            del self._aiohttp_sessions[connection_id]
+                            logger.debug(f"Closed aiohttp session for connection {connection_id}")
+                        except Exception as e:
+                            logger.error(f"Error closing aiohttp session for {connection_id}: {e}")
                 
-                # Cleanup
-                await self._cleanup_connection(connection_id)
-    
+                # Check if cleanup is needed
+                needs_cleanup = False
+                async with self._connections_lock:
+                    if connection_id in self._active_connections:
+                        conn_info = self._active_connections.get(connection_id)
+                        if conn_info and not conn_info.get("cleanup_in_progress", False):
+                            conn_info["cleanup_in_progress"] = True
+                            needs_cleanup = True
+                
+                # Perform cleanup if needed
+                if needs_cleanup:
+                    await self._cleanup_single_connection(connection_id)
+                
+                # Remove from monitor last
+                self.monitor.remove_connection(connection_id)
+                
+                logger.info(f"Connection {connection_id} fully closed and cleaned up")
     def _build_config_from_params(self, websocket: WebSocket) -> ConversationConfig:
         """Build conversation config from query parameters"""
         params = websocket.query_params
@@ -639,200 +671,331 @@ class WebSocketConnectionHandler:
         )
     
     async def _handle_disconnect(self, connection_id: str):
-        """Handle client disconnect"""
-        logger.info(f"WebSocket disconnected: {connection_id}")
+        """Handle client disconnect for a specific connection"""
+        logger.info(f"[DISCONNECT] WebSocket disconnected: {connection_id}")
         
-        conn_info = self._active_connections.get(connection_id)
-        if conn_info:
-            conversation = conn_info["conversation"]
+        # Get connection info with proper locking
+        async with self._connections_lock:
+            conn_info = self._active_connections.get(connection_id)
+            if not conn_info:
+                logger.debug(f"[DISCONNECT] Connection {connection_id} not found")
+                return
             
-            await self.transcript_storage.end_transcript(conversation.id)
-            await self.conversation_manager.end_conversation(conversation.id)
+            # Check if already being cleaned up
+            if conn_info.get("cleanup_in_progress", False):
+                logger.debug(f"[DISCONNECT] Connection {connection_id} already being cleaned up")
+                return
             
+            # Mark as being cleaned up
+            conn_info["cleanup_in_progress"] = True
+            
+            # Extract what we need
+            conversation = conn_info.get("conversation")
+            correlation_token = conn_info.get("correlation_token")
+            attempt_id = conn_info.get("attempt_id")
+            student_id = conn_info.get("student_id")
+        
+        if conversation:
+            # End transcript and conversation
+            try:
+                await self.transcript_storage.end_transcript(conversation.id)
+                await self.conversation_manager.end_conversation(conversation.id)
+            except Exception as e:
+                logger.error(f"[DISCONNECT] Error ending conversation: {e}")
+            
+            # Emit disconnection event
             await self._event_bus.emit(
                 f"connection:{connection_id}:closed",
                 connection_id=connection_id,
                 session_id=conversation.participant.session_id,
-                correlation_token=conn_info.get("correlation_token"),
-                attempt_id=conn_info.get("attempt_id"),
-                student_id=conn_info.get("student_id"),
-                opening_line=conn_info.get("opening_line"),
-                has_opening_line=conn_info.get("has_opening_line", False),
-                reason="client_disconnect",
-                processors_enabled=conn_info.get("processors_enabled", True)
+                correlation_token=correlation_token,
+                attempt_id=attempt_id,
+                student_id=student_id,
+                reason="client_disconnect"
             )
-    
+
     async def _handle_error(self, connection_id: str, error: Exception):
-        """Handle connection error"""
-        logger.error(f"Connection error for {connection_id}: {error}")
+        """Handle connection error for a specific connection"""
+        logger.error(f"[ERROR] Connection error for {connection_id}: {error}")
         
-        conn_info = self._active_connections.get(connection_id)
-        if conn_info:
-            websocket = conn_info["websocket"]
-            conversation = conn_info["conversation"]
+        async with self._connections_lock:
+            conn_info = self._active_connections.get(connection_id)
+            if not conn_info:
+                return
             
+            # Check if already being cleaned up
+            if conn_info.get("cleanup_in_progress", False):
+                return
+            
+            conn_info["cleanup_in_progress"] = True
+            
+            websocket = conn_info.get("websocket")
+            conversation = conn_info.get("conversation")
+            correlation_token = conn_info.get("correlation_token")
+        
+        if conversation:
+            # Update transcript with error
             await self.transcript_storage.end_transcript(conversation.id)
             await self.transcript_storage.update_metadata(
                 conversation.id,
-                {
-                    "error": str(error),
-                    "error_type": type(error).__name__,
-                    "attempt_id": conn_info.get("attempt_id"),
-                    "student_id": conn_info.get("student_id")
-                }
+                {"error": str(error), "error_type": type(error).__name__}
             )
             
-            try:
-                await websocket.close(code=1011, reason=str(error))
-            except:
-                pass
+            # Try to close WebSocket
+            if websocket:
+                try:
+                    await websocket.close(code=1011, reason=str(error))
+                except:
+                    pass
             
+            # End conversation with error
             await self.conversation_manager.end_conversation(
                 conversation.id,
                 error=str(error)
             )
             
+            # Emit error event
             await self._event_bus.emit(
                 f"connection:{connection_id}:error",
                 connection_id=connection_id,
                 session_id=conversation.participant.session_id,
-                correlation_token=conn_info.get("correlation_token"),
-                attempt_id=conn_info.get("attempt_id"),
-                student_id=conn_info.get("student_id"),
-                opening_line=conn_info.get("opening_line"),
-                has_opening_line=conn_info.get("has_opening_line", False),
+                correlation_token=correlation_token,
                 error_type=type(error).__name__,
                 error_message=str(error)
             )
-    
-    async def _cleanup_connection(self, connection_id: str):
-        """Clean up connection resources"""
-        if connection_id in self._active_connections:
-            conn_info = self._active_connections[connection_id]
-            conversation = conn_info["conversation"]
-            
-            await self.transcript_storage.end_transcript(conversation.id)
-            await self.conversation_manager.end_conversation(conversation.id)
-            
-            if connection_id in self._aiohttp_sessions:
-                session = self._aiohttp_sessions[connection_id]
-                await session.close()
-                del self._aiohttp_sessions[connection_id]
-            
-            del self._active_connections[connection_id]
-    
+
     async def shutdown(self):
         """Shutdown handler and cleanup all connections"""
         logger.info("Shutting down WebSocket handler")
         
-        connection_ids = list(self._active_connections.keys())
-        for conn_id in connection_ids:
-            await self._cleanup_connection(conn_id)
+        # Get all connection IDs
+        async with self._connections_lock:
+            connection_ids = list(self._active_connections.keys())
         
-        for session in self._aiohttp_sessions.values():
-            await session.close()
-        self._aiohttp_sessions.clear()
+        # Clean up each connection
+        for conn_id in connection_ids:
+            await self._cleanup_single_connection(conn_id)
+        
+        # Clean up remaining aiohttp sessions
+        async with self._connections_lock:
+            for session in self._aiohttp_sessions.values():
+                try:
+                    await session.close()
+                except:
+                    pass
+            self._aiohttp_sessions.clear()
+            self._active_connections.clear()
 
+    def is_connection_valid(self, connection_id: str) -> bool:
+        """Check if a connection is valid and active"""
+        with self._connections_lock:
+            if connection_id not in self._active_connections:
+                return False
+            
+            conn_info = self._active_connections[connection_id]
+            websocket = conn_info.get("websocket")
+            
+            if not websocket:
+                return False
+            
+            # Check WebSocket state
+            try:
+                return websocket.client_state.name == "CONNECTED"
+            except:
+                return False
+    
+    async def _cleanup_single_connection(self, connection_id: str, skip_conversation_end: bool = False):
+            """Clean up a single connection's resources without affecting others"""
+            logger.info(f"[CLEANUP] Starting cleanup for connection: {connection_id}")
+            
+            # Variables to track what needs cleanup
+            conversation_id = None
+            aiohttp_session = None
+            correlation_token = None
+            
+            # Get connection info and mark for cleanup
+            async with self._connections_lock:
+                if connection_id not in self._active_connections:
+                    logger.debug(f"[CLEANUP] Connection {connection_id} not found, already cleaned")
+                    return
+                
+                conn_info = self._active_connections.get(connection_id)
+                if not conn_info:
+                    return
+                
+                # Extract needed info
+                conversation = conn_info.get("conversation")
+                conversation_id = conversation.id if conversation else None
+                aiohttp_session = conn_info.get("aiohttp_session")
+                correlation_token = conn_info.get("correlation_token")
+            
+            # Perform cleanup operations outside the lock
+            
+            # End transcript for THIS connection only
+            if conversation_id:
+                try:
+                    await self.transcript_storage.end_transcript(conversation_id)
+                    logger.debug(f"[CLEANUP] Ended transcript for conversation {conversation_id}")
+                except Exception as e:
+                    logger.error(f"[CLEANUP] Error ending transcript for {conversation_id}: {e}")
+            
+            # End conversation for THIS connection only (unless skipped)
+            if conversation_id and not skip_conversation_end:
+                try:
+                    await self.conversation_manager.end_conversation(conversation_id)
+                    logger.debug(f"[CLEANUP] Ended conversation {conversation_id}")
+                except Exception as e:
+                    logger.error(f"[CLEANUP] Error ending conversation {conversation_id}: {e}")
+            
+            # Close aiohttp session for THIS connection only
+            if aiohttp_session:
+                try:
+                    await aiohttp_session.close()
+                    logger.debug(f"[CLEANUP] Closed aiohttp session for {connection_id}")
+                except Exception as e:
+                    logger.error(f"[CLEANUP] Error closing aiohttp session for {connection_id}: {e}")
+            
+            # Remove from collections
+            async with self._connections_lock:
+                # Remove from aiohttp sessions
+                if connection_id in self._aiohttp_sessions:
+                    del self._aiohttp_sessions[connection_id]
+                    logger.debug(f"[CLEANUP] Removed aiohttp session reference for {connection_id}")
+                
+                # Remove from active connections
+                if connection_id in self._active_connections:
+                    del self._active_connections[connection_id]
+                    logger.debug(f"[CLEANUP] Removed from active connections: {connection_id}")
+            
+            # Remove from monitor (outside lock)
+            try:
+                self.monitor.remove_connection(connection_id)
+            except Exception as e:
+                logger.error(f"[CLEANUP] Error removing from monitor: {e}")
+            
+            logger.info(f"[CLEANUP] Completed cleanup for connection: {connection_id} (correlation: {correlation_token})")
+
+    async def _cleanup_connection(self, connection_id: str):
+        """Alias for _cleanup_single_connection for backward compatibility"""
+        await self._cleanup_single_connection(connection_id)
+        
     async def close_connection_by_correlation(self, correlation_token: str) -> int:
-        """
-        Close all connections associated with a correlation token
-        Returns the number of connections closed
-        """
+        """Close ONLY connections with the exact correlation token"""
         connections_closed = 0
         connections_to_close = []
         
         logger.info(f"[FORCE_CLOSE] Searching for connections with correlation token: {correlation_token}")
         
-        # Find all connections with this correlation token
-        for connection_id, conn_info in self._active_connections.items():
-            if conn_info.get("correlation_token") == correlation_token:
-                connections_to_close.append(connection_id)
-                logger.info(f"[FORCE_CLOSE] Found connection to close: {connection_id}")
+        # Get a snapshot of connections with lock
+        async with self._connections_lock:
+            # Create a deep copy to avoid issues during iteration
+            active_connections_snapshot = {}
+            for conn_id, conn_info in self._active_connections.items():
+                active_connections_snapshot[conn_id] = dict(conn_info)
         
-        # Close each connection
+        # Find ONLY connections with exact correlation token match
+        for connection_id, conn_info in active_connections_snapshot.items():
+            conn_correlation = conn_info.get("correlation_token")
+            # CRITICAL: Exact match only
+            if conn_correlation and conn_correlation == correlation_token:
+                connections_to_close.append(connection_id)
+                logger.info(f"[FORCE_CLOSE] Found connection to close: {connection_id} (correlation: {conn_correlation})")
+            else:
+                logger.debug(f"[FORCE_CLOSE] Skipping connection {connection_id} (correlation: {conn_correlation} != {correlation_token})")
+        
+        # If no connections found, log it
+        if not connections_to_close:
+            logger.warning(f"[FORCE_CLOSE] No connections found with correlation token: {correlation_token}")
+            return 0
+        
+        # Process each connection individually
         for connection_id in connections_to_close:
             try:
-                conn_info = self._active_connections.get(connection_id)
-                if conn_info:
-                    websocket = conn_info["websocket"]
-                    conversation = conn_info["conversation"]
-                    pipeline = conn_info.get("pipeline")
+                # Verify connection still exists and has the same correlation token
+                async with self._connections_lock:
+                    current_conn_info = self._active_connections.get(connection_id)
+                    if not current_conn_info:
+                        logger.warning(f"[FORCE_CLOSE] Connection {connection_id} no longer exists")
+                        continue
                     
-                    # CRITICAL: Stop the billing processor FIRST
-                    if pipeline and hasattr(pipeline, 'processors'):
-                        logger.info(f"[FORCE_CLOSE] Checking pipeline processors for billing processor")
+                    # Double-check correlation token hasn't changed
+                    if current_conn_info.get("correlation_token") != correlation_token:
+                        logger.warning(f"[FORCE_CLOSE] Connection {connection_id} correlation token changed, skipping")
+                        continue
+                    
+                    # Check if already being cleaned
+                    if current_conn_info.get("cleanup_in_progress", False):
+                        logger.debug(f"[FORCE_CLOSE] Connection {connection_id} already being cleaned")
+                        continue
+                    
+                    # Mark as being cleaned to prevent concurrent cleanup
+                    current_conn_info["cleanup_in_progress"] = True
+                    
+                    # Extract what we need for cleanup
+                    websocket = current_conn_info.get("websocket")
+                    pipeline = current_conn_info.get("pipeline")
+                    conversation = current_conn_info.get("conversation")
+                    conversation_id = conversation.id if conversation else None
+                
+                # Mark in monitor to prevent health checks (outside lock)
+                self.monitor.mark_connection_for_closure(connection_id)
+                self.monitor.mark_websocket_closed(connection_id)
+                
+                # Stop billing processor if exists
+                if pipeline and hasattr(pipeline, 'processors'):
+                    try:
                         for processor in pipeline.processors:
-                            # Check if this is a BillingProcessor
                             if hasattr(processor, '__class__') and processor.__class__.__name__ == 'BillingProcessor':
-                                logger.info(
-                                    f"[FORCE_CLOSE] Found BillingProcessor, stopping billing for {correlation_token}"
-                                )
-                                # Call the public stop_billing method
                                 if hasattr(processor, 'stop_billing'):
                                     await processor.stop_billing("api_force_close")
-                                    logger.info(
-                                        f"[FORCE_CLOSE] BillingProcessor stopped for {correlation_token}"
-                                    )
-                                else:
-                                    # Fallback to _stop_billing if stop_billing doesn't exist
-                                    await processor._stop_billing("api_force_close")
-                                    logger.info(
-                                        f"[FORCE_CLOSE] BillingProcessor stopped (using _stop_billing) for {correlation_token}"
-                                    )
-                    else:
-                        logger.warning(f"[FORCE_CLOSE] No pipeline or processors found for {connection_id}")
-                    
-                    # Log the forced closure
-                    self.logfire.log_connection_event(
-                        connection_id=connection_id,
-                        event="force_closed_by_backend",
-                        correlation_token=correlation_token,
-                        attempt_id=conn_info.get("attempt_id"),
-                        student_id=conn_info.get("student_id"),
-                        reason="simulation_ended_by_backend"
-                    )
-                    
-                    # Send termination message to client
-                    try:
-                        await websocket.send_json({
-                            "type": "session_terminated",
-                            "reason": "simulation_ended",
-                            "message": "Your simulation session has been ended by the system",
-                            "timestamp": datetime.utcnow().isoformat()
-                        })
-                        logger.info(f"[FORCE_CLOSE] Sent termination message to client")
+                                    logger.debug(f"[FORCE_CLOSE] Stopped billing for {connection_id}")
+                                    break
                     except Exception as e:
-                        logger.debug(f"[FORCE_CLOSE] Could not send termination message: {e}")
-                    
-                    # Close the WebSocket
+                        logger.error(f"[FORCE_CLOSE] Error stopping billing for {connection_id}: {e}")
+                
+                # Send termination message if WebSocket is still connected
+                if websocket:
                     try:
-                        await websocket.close(code=1000, reason="Simulation ended by system")
-                        logger.info(f"[FORCE_CLOSE] WebSocket closed")
+                        if hasattr(websocket, 'client_state') and websocket.client_state.name == "CONNECTED":
+                            try:
+                                await asyncio.wait_for(
+                                    websocket.send_json({
+                                        "type": "session_terminated",
+                                        "reason": "simulation_ended",
+                                        "message": "Your simulation session has been ended by the system",
+                                        "timestamp": datetime.utcnow().isoformat()
+                                    }),
+                                    timeout=1.0
+                                )
+                            except (asyncio.TimeoutError, Exception):
+                                pass
+                            
+                            # Close WebSocket
+                            await websocket.close(code=1000, reason="Simulation ended by system")
+                            logger.debug(f"[FORCE_CLOSE] Closed WebSocket for {connection_id}")
                     except Exception as e:
-                        logger.error(f"[FORCE_CLOSE] Error closing WebSocket: {e}")
-                    
-                    # Cleanup the connection
-                    await self._cleanup_connection(connection_id)
-                    connections_closed += 1
-                    
-                    logger.info(f"[FORCE_CLOSE] Successfully closed connection {connection_id} for correlation token {correlation_token}")
-                    
+                        logger.debug(f"[FORCE_CLOSE] WebSocket close error for {connection_id}: {e}")
+                
+                # End conversation if exists
+                if conversation_id:
+                    try:
+                        await self.conversation_manager.end_conversation(conversation_id)
+                        logger.debug(f"[FORCE_CLOSE] Ended conversation {conversation_id}")
+                    except Exception as e:
+                        logger.error(f"[FORCE_CLOSE] Error ending conversation {conversation_id}: {e}")
+                
+                # Clean up THIS connection's resources only
+                await self._cleanup_single_connection(connection_id, skip_conversation_end=True)
+                connections_closed += 1
+                
+                logger.info(f"[FORCE_CLOSE] Successfully closed connection {connection_id}")
+                
             except Exception as e:
-                logger.error(f"[FORCE_CLOSE] Error closing connection {connection_id}: {e}", exc_info=True)
+                logger.error(f"[FORCE_CLOSE] Error processing connection {connection_id}: {e}", exc_info=True)
         
-        if connections_closed == 0:
-            logger.warning(f"[FORCE_CLOSE] No active connections found for correlation token {correlation_token}")
-        
-        # Also check monitor for any connections we might have missed
-        monitor = self.monitor
-        monitor_connections = monitor.get_all_connections()
-        for conn_id, conn_info in monitor_connections.items():
-            if conn_info.metadata.get("correlation_token") == correlation_token:
-                logger.info(f"[FORCE_CLOSE] Removing connection {conn_id} from monitor")
-                monitor.remove_connection(conn_id)
-        
-        logger.info(f"[FORCE_CLOSE] Closed {connections_closed} connection(s) for correlation token {correlation_token}")
+        logger.info(f"[FORCE_CLOSE] Closed {connections_closed} connection(s) for correlation token: {correlation_token}")
         return connections_closed
+    
 
 _websocket_handler: Optional[WebSocketConnectionHandler] = None
 

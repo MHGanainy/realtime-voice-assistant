@@ -29,10 +29,12 @@ logger = logging.getLogger(__name__)
 class ConversationManager:
     """Manages voice conversations between participants and AI assistant"""
     
-    def __init__(self, pipeline_runner: Optional[PipelineRunner] = None):
+    def __init__(self):
         self._conversations: Dict[str, Conversation] = {}
         self._active_pipelines: Dict[str, Dict[str, Any]] = {}
-        self._pipeline_runner = pipeline_runner or PipelineRunner()
+        # REMOVED: self._pipeline_runner = pipeline_runner or PipelineRunner()
+        # Each conversation will get its own runner
+        self._pipeline_runners: Dict[str, PipelineRunner] = {}
         self._settings = get_settings()
         
         self._event_bus = get_event_bus()
@@ -55,6 +57,10 @@ class ConversationManager:
         )
         
         self._conversations[conversation.id] = conversation
+        
+        # Create a dedicated runner for this conversation
+        self._pipeline_runners[conversation.id] = PipelineRunner()
+        logger.debug(f"Created dedicated PipelineRunner for conversation {conversation.id}")
         
         await self._event_bus.emit(
             f"conversation:{conversation.id}:lifecycle:created",
@@ -134,12 +140,20 @@ class ConversationManager:
         conversation_id: str,
         task: PipelineTask
     ):
-        """Run the pipeline task for a conversation"""
+        """Run the pipeline task for a conversation with its dedicated runner"""
         if conversation_id in self._active_pipelines:
             self._active_pipelines[conversation_id]["task"] = task
+        
+        # Get the dedicated runner for this conversation
+        runner = self._pipeline_runners.get(conversation_id)
+        if not runner:
+            logger.error(f"No runner found for conversation {conversation_id}")
+            runner = PipelineRunner()  # Fallback to new runner
+            self._pipeline_runners[conversation_id] = runner
             
         try:
-            await self._pipeline_runner.run(task)
+            # Run with the dedicated runner
+            await runner.run(task)
         except Exception as e:
             logger.error(f"Pipeline error for conversation {conversation_id}: {e}")
             await self.end_conversation(conversation_id, error=str(e))
@@ -154,6 +168,7 @@ class ConversationManager:
         if not conversation:
             return False
         
+        # Cancel pipeline task if active
         if conversation_id in self._active_pipelines:
             pipeline_info = self._active_pipelines[conversation_id]
             task = pipeline_info.get("task")
@@ -161,6 +176,11 @@ class ConversationManager:
                 await task.cancel()
             
             del self._active_pipelines[conversation_id]
+        
+        # Clean up the dedicated runner
+        if conversation_id in self._pipeline_runners:
+            del self._pipeline_runners[conversation_id]
+            logger.debug(f"Removed PipelineRunner for conversation {conversation_id}")
         
         conversation.end(error=error)
         
@@ -326,6 +346,10 @@ class ConversationManager:
             await self.end_conversation(conversation_id)
             del self._conversations[conversation_id]
             
+            # Clean up runner if still exists
+            if conversation_id in self._pipeline_runners:
+                del self._pipeline_runners[conversation_id]
+            
             await self._event_store.clear_conversation_events(conversation_id)
             
             logger.info(f"Cleaned up conversation {conversation_id}")
@@ -371,6 +395,9 @@ class ConversationManager:
         active_convs = list(self.get_active_conversations().keys())
         for conv_id in active_convs:
             await self.end_conversation(conv_id)
+        
+        # Clean up all runners
+        self._pipeline_runners.clear()
         
         logger.info("Conversation manager shut down")
 
