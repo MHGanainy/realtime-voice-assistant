@@ -123,12 +123,9 @@ def create_stt_service(service_name: str, **kwargs):
             "api_key": api_key,
             "connection_params": connection_params,
             "vad_force_turn_endpoint": kwargs.get("vad_force_turn_endpoint", True),
+            "api_endpoint_base_url": "wss://streaming.eu.assemblyai.com/v3/ws",
             "language": kwargs.get("language", Language.EN),  # AssemblyAI only supports English for streaming
         }
-        
-        # Only add api_endpoint_base_url if it's provided
-        if "api_endpoint_base_url" in kwargs:
-            service_kwargs["api_endpoint_base_url"] = kwargs["api_endpoint_base_url"]
         
         return AssemblyAISTTService(**service_kwargs)
     
